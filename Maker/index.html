@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Maze Forge Camera Locked</title>
+<link rel="stylesheet" href="main">
+</head>
+
+<body>
+
+<div id="bar">
+  W <input id="w" type="number" value="14" min="5" max="80">
+  H <input id="h" type="number" value="14" min="5" max="80">
+
+  <button onclick="create()">New</button>
+  <button onclick="mode='wall'">Wall</button>
+  <button onclick="mode='path'">Path</button>
+  <button onclick="mode='start'">Start</button>
+  <button onclick="mode='end'">End</button>
+
+  <button onclick="exportMaze()">Export</button>
+  <button onclick="importMaze()">Import</button>
+  <button onclick="toggleTest()">Test</button>
+
+  <button onclick="zoomIn()">+</button>
+  <button onclick="zoomOut()">-</button>
+</div>
+
+<div id="label"></div>
+<canvas id="c"></canvas>
+
+<textarea id="out"></textarea>
+
+<script src="main.js"></script>
+</body>
+</html>
