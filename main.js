@@ -1,4 +1,4 @@
-  const max = 4;
+const max = 4;
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
@@ -167,6 +167,79 @@ function parseGrid() {
 
 window.addEventListener("keydown", e => keys[e.key] = true);
 window.addEventListener("keyup", e => keys[e.key] = false);
+
+/* ---------------- CLICK CONTROLS ---------------- */
+
+let activeClickKeys = {};
+
+canvas.addEventListener("mousedown", e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  
+  const centerX = rect.width / 2;
+  const centerY = rect.height / 2;
+  
+  // Determine which direction based on click position
+  if (x > centerX) {
+    activeClickKeys["ArrowRight"] = true;
+    keys["ArrowRight"] = true;
+  }
+  if (x < centerX) {
+    activeClickKeys["ArrowLeft"] = true;
+    keys["ArrowLeft"] = true;
+  }
+  if (y > centerY) {
+    activeClickKeys["ArrowDown"] = true;
+    keys["ArrowDown"] = true;
+  }
+  if (y < centerY) {
+    activeClickKeys["ArrowUp"] = true;
+    keys["ArrowUp"] = true;
+  }
+});
+
+canvas.addEventListener("mouseup", e => {
+  Object.keys(activeClickKeys).forEach(key => {
+    delete keys[key];
+  });
+  activeClickKeys = {};
+});
+
+// Handle touch for mobile
+canvas.addEventListener("touchstart", e => {
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  const x = touch.clientX - rect.left;
+  const y = touch.clientY - rect.top;
+  
+  const centerX = rect.width / 2;
+  const centerY = rect.height / 2;
+  
+  if (x > centerX) {
+    activeClickKeys["ArrowRight"] = true;
+    keys["ArrowRight"] = true;
+  }
+  if (x < centerX) {
+    activeClickKeys["ArrowLeft"] = true;
+    keys["ArrowLeft"] = true;
+  }
+  if (y > centerY) {
+    activeClickKeys["ArrowDown"] = true;
+    keys["ArrowDown"] = true;
+  }
+  if (y < centerY) {
+    activeClickKeys["ArrowUp"] = true;
+    keys["ArrowUp"] = true;
+  }
+});
+
+canvas.addEventListener("touchend", e => {
+  Object.keys(activeClickKeys).forEach(key => {
+    delete keys[key];
+  });
+  activeClickKeys = {};
+});
 
 /* ---------------- COLLISION ---------------- */
 
