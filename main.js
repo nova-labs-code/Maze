@@ -264,15 +264,30 @@ function move() {
   if (keys["ArrowLeft"]) dx -= SPEED;
   if (keys["ArrowRight"]) dx += SPEED;
 
-  // Click/touch targeting - quadrant-based movement
+  // Click/touch targeting - pure directional movement
   if (clickTarget) {
     const centerX = window.innerWidth / 2;
     const centerY = window.innerHeight / 2;
 
-    if (clickTarget.x > centerX) dx = SPEED;      // Right side
-    if (clickTarget.x < centerX) dx = -SPEED;     // Left side
-    if (clickTarget.y > centerY) dy = SPEED;      // Bottom
-    if (clickTarget.y < centerY) dy = -SPEED;     // Top
+    const distX = Math.abs(clickTarget.x - centerX);
+    const distY = Math.abs(clickTarget.y - centerY);
+
+    // Move only in the direction with the largest offset from center
+    if (distX > distY) {
+      // Moving left or right
+      if (clickTarget.x > centerX) {
+        dx = SPEED;  // Right
+      } else {
+        dx = -SPEED; // Left
+      }
+    } else {
+      // Moving up or down
+      if (clickTarget.y > centerY) {
+        dy = SPEED;  // Down
+      } else {
+        dy = -SPEED; // Up
+      }
+    }
   }
 
   tryMove(dx, dy);
