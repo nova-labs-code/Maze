@@ -172,43 +172,32 @@ window.addEventListener("keyup", e => keys[e.key] = false);
 
 let clickTarget = null;
 
-canvas.addEventListener("mousedown", e => {
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  clickTarget = { x, y };
+// Mouse controls - anywhere on screen
+document.addEventListener("mousedown", e => {
+  clickTarget = { x: e.clientX, y: e.clientY };
 });
 
-canvas.addEventListener("mouseup", e => {
+document.addEventListener("mouseup", e => {
   clickTarget = null;
 });
 
-canvas.addEventListener("mousemove", e => {
+document.addEventListener("mousemove", e => {
   if (e.buttons !== 1) return; // Only track if mouse button is held
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  clickTarget = { x, y };
+  clickTarget = { x: e.clientX, y: e.clientY };
 });
 
-// Handle touch for mobile
-canvas.addEventListener("touchstart", e => {
-  const rect = canvas.getBoundingClientRect();
+// Touch controls - anywhere on screen
+document.addEventListener("touchstart", e => {
   const touch = e.touches[0];
-  const x = touch.clientX - rect.left;
-  const y = touch.clientY - rect.top;
-  clickTarget = { x, y };
+  clickTarget = { x: touch.clientX, y: touch.clientY };
 });
 
-canvas.addEventListener("touchmove", e => {
-  const rect = canvas.getBoundingClientRect();
+document.addEventListener("touchmove", e => {
   const touch = e.touches[0];
-  const x = touch.clientX - rect.left;
-  const y = touch.clientY - rect.top;
-  clickTarget = { x, y };
+  clickTarget = { x: touch.clientX, y: touch.clientY };
 });
 
-canvas.addEventListener("touchend", e => {
+document.addEventListener("touchend", e => {
   clickTarget = null;
 });
 
@@ -275,7 +264,7 @@ function move() {
   if (keys["ArrowLeft"]) dx -= SPEED;
   if (keys["ArrowRight"]) dx += SPEED;
 
-  // Click/touch targeting - move toward click point
+  // Click/touch targeting - move toward click point anywhere on screen
   if (clickTarget) {
     const cols = data.cols;
     const rows = data.rows;
@@ -283,12 +272,19 @@ function move() {
     const offsetX = (canvas.width - cols * tileSize) / 2;
     const offsetY = (canvas.height - rows * tileSize) / 2;
 
+    // Get canvas position on screen
+    const canvasRect = canvas.getBoundingClientRect();
+
+    // Convert screen coordinates to canvas coordinates
+    const clickCanvasX = clickTarget.x - canvasRect.left;
+    const clickCanvasY = clickTarget.y - canvasRect.top;
+
     // Calculate direction from player to click target
     const playerScreenX = offsetX + playerPx.x + (tileSize * HITBOX_SCALE) / 2;
     const playerScreenY = offsetY + playerPx.y + (tileSize * HITBOX_SCALE) / 2;
 
-    const dirX = clickTarget.x - playerScreenX;
-    const dirY = clickTarget.y - playerScreenY;
+    const dirX = clickCanvasX - playerScreenX;
+    const dirY = clickCanvasY - playerScreenY;
     const distance = Math.sqrt(dirX * dirX + dirY * dirY);
 
     if (distance > 5) {
