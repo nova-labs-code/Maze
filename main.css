@@ -1,49 +1,72 @@
-body {
-  margin:0;
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;          /* kills page scroll */
+  touch-action: none;        /* blocks swipe gestures */
   background: radial-gradient(circle at top, #0a0f1f, #05070d);
-  font-family: Arial;
-  color:white;
-  overflow:hidden;
+  font-family: Arial, sans-serif;
+  color: white;
 }
 
+/* CENTER LOBBY */
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* MENU */
 #menu {
-  display:grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap:10px;
-  padding:20px;
-  width:360px;
-  margin:auto;
-  margin-top:80px;
-  max-height:70vh;
-  overflow-y:auto;
-  background: rgba(10,15,31,0.4);
-  border-radius:12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 10px;
+
+  width: min(92vw, 360px);
+  max-height: 70vh;
+
+  padding: 16px;
+  overflow-y: auto;
+
+  background: rgba(10, 15, 31, 0.4);
+  border-radius: 12px;
+
+  box-sizing: border-box;
+
+  -webkit-overflow-scrolling: touch; /* smooth iOS scroll */
+  touch-action: pan-y;               /* allow only vertical scroll */
 }
 
+/* BUTTONS */
 .level {
-  padding:12px;
-  border-radius:10px;
-  border:none;
-  cursor:pointer;
-  background:#1c2a44;
-  color:white;
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  background: #1c2a44;
+  color: white;
+  font-size: 14px;
+  width: 100%;
 }
 
 .level.locked {
-  opacity:0.4;
-  background:#222;
-  cursor:not-allowed;
+  opacity: 0.4;
+  background: #222;
+  cursor: not-allowed;
 }
 
+/* CANVAS */
 canvas {
-  display:none;
-  background:#070a12;
-  border:2px solid #2b3f66;
-  border-radius:12px;
-  box-shadow:0 0 25px rgba(80,120,255,0.25);
-  margin:auto;
+  display: none;
+  background: #070a12;
+  border: 2px solid #2b3f66;
+  border-radius: 12px;
+  box-shadow: 0 0 25px rgba(80, 120, 255, 0.25);
+
+  max-width: 95vw;
+  max-height: 70vh;
 }
 
+/* WIN SCREEN */
 #win {
   position: fixed;
   inset: 0;
@@ -52,11 +75,11 @@ canvas {
   justify-content: center;
   flex-direction: column;
 
-  font-size: 42px;
+  font-size: clamp(28px, 6vw, 42px);
   font-weight: bold;
   text-align: center;
 
-  background: #05070d; /* solid blackout */
+  background: #05070d;
   color: #00e5ff;
 
   z-index: 9999;
@@ -67,4 +90,5 @@ canvas {
     0 0 40px rgba(80, 120, 255, 0.35);
 
   cursor: pointer;
+  padding: 20px;
 }
