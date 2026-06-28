@@ -264,35 +264,15 @@ function move() {
   if (keys["ArrowLeft"]) dx -= SPEED;
   if (keys["ArrowRight"]) dx += SPEED;
 
-  // Click/touch targeting - move toward click point anywhere on screen
+  // Click/touch targeting - quadrant-based movement
   if (clickTarget) {
-    const cols = data.cols;
-    const rows = data.rows;
-    const tileSize = Math.min(canvas.width / cols, canvas.height / rows);
-    const offsetX = (canvas.width - cols * tileSize) / 2;
-    const offsetY = (canvas.height - rows * tileSize) / 2;
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
 
-    // Get canvas position on screen
-    const canvasRect = canvas.getBoundingClientRect();
-
-    // Convert screen coordinates to canvas coordinates
-    const clickCanvasX = clickTarget.x - canvasRect.left;
-    const clickCanvasY = clickTarget.y - canvasRect.top;
-
-    // Calculate direction from player to click target
-    const playerScreenX = offsetX + playerPx.x + (tileSize * HITBOX_SCALE) / 2;
-    const playerScreenY = offsetY + playerPx.y + (tileSize * HITBOX_SCALE) / 2;
-
-    const dirX = clickCanvasX - playerScreenX;
-    const dirY = clickCanvasY - playerScreenY;
-    const distance = Math.sqrt(dirX * dirX + dirY * dirY);
-
-    if (distance > 5) {
-      const normX = dirX / distance;
-      const normY = dirY / distance;
-      dx = normX * SPEED;
-      dy = normY * SPEED;
-    }
+    if (clickTarget.x > centerX) dx = SPEED;      // Right side
+    if (clickTarget.x < centerX) dx = -SPEED;     // Left side
+    if (clickTarget.y > centerY) dy = SPEED;      // Bottom
+    if (clickTarget.y < centerY) dy = -SPEED;     // Top
   }
 
   tryMove(dx, dy);
