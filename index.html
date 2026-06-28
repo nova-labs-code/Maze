@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <title>Maze - Levels</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
 </head>
 
@@ -64,6 +64,12 @@ LEVEL COMPLETE 🌟<br>
 
 <script src="main.js"></script>
 </html>
-<script src="https://github.com/nova-labs-code/Maze/settings/pages"></script>
+<script>document.addEventListener('gesturestart', function (e) {
+  e.preventDefault();
+});
+
+document.addEventListener('wheel', function (e) {
+  if (e.ctrlKey) e.preventDefault(); // blocks ctrl + scroll zoom
+}, { passive: false });</script>
 </body>
 </html>
