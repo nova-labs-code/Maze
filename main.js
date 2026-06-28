@@ -168,42 +168,27 @@ function parseGrid() {
 window.addEventListener("keydown", e => keys[e.key] = true);
 window.addEventListener("keyup", e => keys[e.key] = false);
 
-/* ---------------- CLICK CONTROLS ---------------- */
+/* ---------------- CLICK CONTROLS (DIRECT AIM) ---------------- */
 
-let activeClickKeys = {};
+let clickTarget = null;
 
 canvas.addEventListener("mousedown", e => {
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
-  
-  const centerX = rect.width / 2;
-  const centerY = rect.height / 2;
-  
-  // Determine which direction based on click position
-  if (x > centerX) {
-    activeClickKeys["ArrowRight"] = true;
-    keys["ArrowRight"] = true;
-  }
-  if (x < centerX) {
-    activeClickKeys["ArrowLeft"] = true;
-    keys["ArrowLeft"] = true;
-  }
-  if (y > centerY) {
-    activeClickKeys["ArrowDown"] = true;
-    keys["ArrowDown"] = true;
-  }
-  if (y < centerY) {
-    activeClickKeys["ArrowUp"] = true;
-    keys["ArrowUp"] = true;
-  }
+  clickTarget = { x, y };
 });
 
 canvas.addEventListener("mouseup", e => {
-  Object.keys(activeClickKeys).forEach(key => {
-    delete keys[key];
-  });
-  activeClickKeys = {};
+  clickTarget = null;
+});
+
+canvas.addEventListener("mousemove", e => {
+  if (e.buttons !== 1) return; // Only track if mouse button is held
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  clickTarget = { x, y };
 });
 
 // Handle touch for mobile
@@ -212,33 +197,19 @@ canvas.addEventListener("touchstart", e => {
   const touch = e.touches[0];
   const x = touch.clientX - rect.left;
   const y = touch.clientY - rect.top;
-  
-  const centerX = rect.width / 2;
-  const centerY = rect.height / 2;
-  
-  if (x > centerX) {
-    activeClickKeys["ArrowRight"] = true;
-    keys["ArrowRight"] = true;
-  }
-  if (x < centerX) {
-    activeClickKeys["ArrowLeft"] = true;
-    keys["ArrowLeft"] = true;
-  }
-  if (y > centerY) {
-    activeClickKeys["ArrowDown"] = true;
-    keys["ArrowDown"] = true;
-  }
-  if (y < centerY) {
-    activeClickKeys["ArrowUp"] = true;
-    keys["ArrowUp"] = true;
-  }
+  clickTarget = { x, y };
+});
+
+canvas.addEventListener("touchmove", e => {
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  const x = touch.clientX - rect.left;
+  const y = touch.clientY - rect.top;
+  clickTarget = { x, y };
 });
 
 canvas.addEventListener("touchend", e => {
-  Object.keys(activeClickKeys).forEach(key => {
-    delete keys[key];
-  });
-  activeClickKeys = {};
+  clickTarget = null;
 });
 
 /* ---------------- COLLISION ---------------- */
@@ -298,10 +269,35 @@ function move() {
   let dx = 0;
   let dy = 0;
 
+  // Keyboard controls
   if (keys["ArrowUp"]) dy -= SPEED;
   if (keys["ArrowDown"]) dy += SPEED;
   if (keys["ArrowLeft"]) dx -= SPEED;
   if (keys["ArrowRight"]) dx += SPEED;
+
+  // Click/touch targeting - move toward click point
+  if (clickTarget) {
+    const cols = data.cols;
+    const rows = data.rows;
+    const tileSize = Math.min(canvas.width / cols, canvas.height / rows);
+    const offsetX = (canvas.width - cols * tileSize) / 2;
+    const offsetY = (canvas.height - rows * tileSize) / 2;
+
+    // Calculate direction from player to click target
+    const playerScreenX = offsetX + playerPx.x + (tileSize * HITBOX_SCALE) / 2;
+    const playerScreenY = offsetY + playerPx.y + (tileSize * HITBOX_SCALE) / 2;
+
+    const dirX = clickTarget.x - playerScreenX;
+    const dirY = clickTarget.y - playerScreenY;
+    const distance = Math.sqrt(dirX * dirX + dirY * dirY);
+
+    if (distance > 5) {
+      const normX = dirX / distance;
+      const normY = dirY / distance;
+      dx = normX * SPEED;
+      dy = normY * SPEED;
+    }
+  }
 
   tryMove(dx, dy);
 
