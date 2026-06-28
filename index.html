@@ -70,6 +70,41 @@ LEVEL COMPLETE 🌟<br>
 
 document.addEventListener('wheel', function (e) {
   if (e.ctrlKey) e.preventDefault(); // blocks ctrl + scroll zoom
-}, { passive: false });</script>
+}, { passive: false });
+
+  // block right click menu
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// block copy / cut / paste
+document.addEventListener('copy', e => e.preventDefault());
+document.addEventListener('cut', e => e.preventDefault());
+document.addEventListener('paste', e => e.preventDefault());
+
+// block text selection attempts
+document.addEventListener('selectstart', e => e.preventDefault());
+
+// block common dev shortcuts (optional but strong lock)
+document.addEventListener('keydown', e => {
+  if (
+    e.ctrlKey && (
+      e.key === 'c' ||
+      e.key === 'v' ||
+      e.key === 'x' ||
+      e.key === 'a' ||
+      e.key === 'u' ||
+      e.key === 's'
+    )
+  ) {
+    e.preventDefault();
+  }
+
+  // block F12 devtools shortcut
+  if (e.key === 'F12') {
+    e.preventDefault();
+  }
+});
+</script>
+
+  
 </body>
 </html>
