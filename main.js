@@ -32,12 +32,12 @@ function setUnlocked(v) {
 function getRequestedLevel() {
   const params = new URLSearchParams(window.location.search);
 
-  // if maze doesn't exist at all â†’ DO NOTHING (menu mode)
+  // if maze doesn't exist at all → DO NOTHING (menu mode)
   if (!params.has("Level")) return null;
 
   const val = params.get("Level");
 
-  // ?Level (empty) â†’ MENU MODE (not latest!)
+  // ?Level (empty) → MENU MODE (not latest!)
   if (val === null || val === "") return "menu";
 
   const num = parseInt(val);
@@ -96,7 +96,7 @@ function buildMenu() {
     if (i > u) {
       b.classList.add("locked");
       b.disabled = true;
-      b.textContent = "ðŸ”’ "+ "Level " + (i);
+      b.textContent = "🔒 "+ "Level " + (i);
     } else {
       b.onclick = () => loadLevel(i);
     }
@@ -359,7 +359,7 @@ const requested = getRequestedLevel();
 const safe = getSafeLevel(requested);
 
 if (safe === null) {
-  buildMenu(); // ðŸŸ¢ menu only
+  buildMenu(); // 🟢 menu only
 } else {
   loadLevel(safe);
   buildMenu();
