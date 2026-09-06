@@ -1,110 +1,110 @@
 <!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8" />
-<title>Maze - Levels</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<html lang="en">
 
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+        content="width=device-width,
+        initial-scale=1.0,
+        maximum-scale=1.0,
+        user-scalable=no,
+        viewport-fit=cover">
+
+    <meta name="theme-color" content="#12030a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+
+    <title>Maze - Levels</title>
+
+    <link rel="stylesheet" href="main.css">
 </head>
 
 <body>
 
-<div id="menu"></div>
-<canvas id="c" width="500" height="500"></canvas>
+    <div id="menu"></div>
 
-<div id="win" onclick="returnToMenu()">
-LEVEL COMPLETE 🌟<br>
-<span style="font-size:18px;">Click to return</span>
-</div>
+    <button id="toggle3D" type="button">
+        Toggle 3D
+    </button>
 
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8" />
-<title>Maze Levels Grid System</title>
+    <canvas id="c" width="500" height="500"></canvas>
 
+    <div id="win" onclick="backToMenu()">
+        LEVEL COMPLETE 🌟<br>
+        <span style="font-size:18px;">Click to return</span>
+    </div>
 
-</head>
+    <script src="main.js"></script>
 
-<body>
+    <script>
+        // Prevent gesture/pinch zoom
+        document.addEventListener('gesturestart', function (e) {
+            e.preventDefault();
+        });
 
-<div id="menu"></div>
-<canvas id="c" width="500" height="500"></canvas>
+        document.addEventListener('gesturechange', function (e) {
+            e.preventDefault();
+        });
 
-<div id="win" onclick="backToMenu()">
-LEVEL COMPLETE 🌟<br>
-<span style="font-size:18px;">Click to return</span>
-</div>
+        document.addEventListener('gestureend', function (e) {
+            e.preventDefault();
+        });
 
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8" />
-<title>Maze Levels Grid System</title>
+        // Prevent Ctrl + mouse-wheel zoom
+        document.addEventListener('wheel', function (e) {
+            if (e.ctrlKey) {
+                e.preventDefault();
+            }
+        }, {
+            passive: false
+        });
 
-<link rel="stylesheet" href="main.css">
-</head>
+        // Block right-click menu
+        document.addEventListener('contextmenu', function (e) {
+            e.preventDefault();
+        });
 
-<body>
+        // Block copy / cut / paste
+        document.addEventListener('copy', function (e) {
+            e.preventDefault();
+        });
 
-<div id="menu"></div>
-<canvas id="c" width="500" height="500"></canvas>
+        document.addEventListener('cut', function (e) {
+            e.preventDefault();
+        });
 
-<div id="win" onclick="backToMenu()">
-LEVEL COMPLETE 🌟<br>
-<span style="font-size:18px;">Click to return</span>
-</div>
+        document.addEventListener('paste', function (e) {
+            e.preventDefault();
+        });
 
+        // Block text selection
+        document.addEventListener('selectstart', function (e) {
+            e.preventDefault();
+        });
 
+        // Block common shortcuts
+        document.addEventListener('keydown', function (e) {
+
+            if (
+                e.ctrlKey && (
+                    e.key.toLowerCase() === 'c' ||
+                    e.key.toLowerCase() === 'v' ||
+                    e.key.toLowerCase() === 'x' ||
+                    e.key.toLowerCase() === 'a' ||
+                    e.key.toLowerCase() === 'u' ||
+                    e.key.toLowerCase() === 's'
+                )
+            ) {
+                e.preventDefault();
+            }
+
+            // Block F12
+            if (e.key === 'F12') {
+                e.preventDefault();
+            }
+        });
+    </script>
 
 </body>
-</html>
 
-</body>
-
-<script src="main.js"></script>
-</html>
-<script>document.addEventListener('gesturestart', function (e) {
-  e.preventDefault();
-});
-
-document.addEventListener('wheel', function (e) {
-  if (e.ctrlKey) e.preventDefault(); // blocks ctrl + scroll zoom
-}, { passive: false });
-
-  // block right click menu
-document.addEventListener('contextmenu', e => e.preventDefault());
-
-// block copy / cut / paste
-document.addEventListener('copy', e => e.preventDefault());
-document.addEventListener('cut', e => e.preventDefault());
-document.addEventListener('paste', e => e.preventDefault());
-
-// block text selection attempts
-document.addEventListener('selectstart', e => e.preventDefault());
-
-// block common dev shortcuts (optional but strong lock)
-document.addEventListener('keydown', e => {
-  if (
-    e.ctrlKey && (
-      e.key === 'c' ||
-      e.key === 'v' ||
-      e.key === 'x' ||
-      e.key === 'a' ||
-      e.key === 'u' ||
-      e.key === 's'
-    )
-  ) {
-    e.preventDefault();
-  }
-
-  // block F12 devtools shortcut
-  if (e.key === 'F12') {
-    e.preventDefault();
-  }
-});
-</script>
-
-  
-</body>
 </html>
