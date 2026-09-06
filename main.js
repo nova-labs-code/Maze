@@ -140,11 +140,12 @@ function updateThumbstickVisibility() {
         return;
     }
 
+    // Show the thumbstick in BOTH 2D and 3D
+    // whenever touch is the active control method.
     const shouldShow =
         supportsTouch &&
         !keyboardMode &&
         isInsideLevel() &&
-        is3D &&
         !levelWon;
 
     thumbstick.hidden =
@@ -164,16 +165,8 @@ function updateControlVisibility() {
     const inLevel =
         isInsideLevel();
 
-    // IMPORTANT:
-    // The 3D toggle is controlled ONLY by whether
-    // we are inside a level.
-    //
-    // It does NOT depend on:
-    // - touch
-    // - keyboard
-    // - 3D mode
-    // - thumbstick state
-
+    // The 3D toggle is controlled only by whether
+    // the player is inside a level.
     toggle3D.hidden =
         !inLevel;
 
@@ -294,7 +287,7 @@ if (thumbstick) {
                 return;
             }
 
-            if (!data || !is3D) {
+            if (!data) {
                 return;
             }
 
@@ -307,7 +300,7 @@ if (thumbstick) {
             e.preventDefault();
             e.stopPropagation();
 
-            // Touch has taken control back.
+            // Touch takes control back.
             keyboardMode = false;
 
             updateThumbstickVisibility();
@@ -317,6 +310,7 @@ if (thumbstick) {
             }
 
             joystickActive = true;
+
             joystickPointerId =
                 e.pointerId;
 
@@ -651,16 +645,12 @@ toggle3D.addEventListener(
 
         resetJoystick();
 
-        // Toggle text.
         toggle3D.textContent =
             is3D
                 ? "2D"
                 : "3D";
 
-        // The toggle stays visible.
         updateControlVisibility();
-
-        // Thumbstick follows the new 3D state.
         updateThumbstickVisibility();
     }
 );
@@ -702,6 +692,7 @@ function setUnlocked(level) {
         level >
         current
     ) {
+
         localStorage.setItem(
             "mazeUnlocked",
             String(
@@ -758,10 +749,8 @@ function buildMenu() {
     win.style.display =
         "none";
 
-    // 3D toggle is hidden on the menu.
     toggle3D.hidden = true;
 
-    // Thumbstick is also hidden on the menu.
     if (thumbstick) {
         thumbstick.hidden = true;
     }
@@ -879,7 +868,7 @@ async function loadLevel(level) {
 
         levelWon = false;
 
-        // New level starts in automatic touch mode.
+        // New level starts in touch mode.
         keyboardMode = false;
 
         menu.style.display =
@@ -891,7 +880,6 @@ async function loadLevel(level) {
         win.style.display =
             "none";
 
-        // IMPORTANT:
         // Always show the 3D toggle inside a level.
         toggle3D.hidden = false;
 
@@ -1234,47 +1222,74 @@ function update2DMovement() {
     let dx = 0;
     let dy = 0;
 
-    if (
-        keys.ArrowUp ||
-        keys.w ||
-        keys.W
-    ) {
-        dy -= SPEED;
-    }
+    // --------------------------------------------------------
+    // MOBILE THUMBSTICK
+    // --------------------------------------------------------
 
     if (
-        keys.ArrowDown ||
-        keys.s ||
-        keys.S
+        supportsTouch &&
+        !keyboardMode &&
+        joystickActive
     ) {
-        dy += SPEED;
+
+        dx =
+            joystickX *
+            SPEED;
+
+        dy =
+            joystickY *
+            SPEED;
     }
 
-    if (
-        keys.ArrowLeft ||
-        keys.a ||
-        keys.A
-    ) {
-        dx -= SPEED;
-    }
+    // --------------------------------------------------------
+    // KEYBOARD
+    // --------------------------------------------------------
 
     if (
-        keys.ArrowRight ||
-        keys.d ||
-        keys.D
+        keyboardMode ||
+        !supportsTouch
     ) {
-        dx += SPEED;
+
+        if (
+            keys.ArrowUp ||
+            keys.w ||
+            keys.W
+        ) {
+            dy -= SPEED;
+        }
+
+        if (
+            keys.ArrowDown ||
+            keys.s ||
+            keys.S
+        ) {
+            dy += SPEED;
+        }
+
+        if (
+            keys.ArrowLeft ||
+            keys.a ||
+            keys.A
+        ) {
+            dx -= SPEED;
+        }
+
+        if (
+            keys.ArrowRight ||
+            keys.d ||
+            keys.D
+        ) {
+            dx += SPEED;
+        }
     }
+
+    // --------------------------------------------------------
+    // CLICK / POINTER MOVEMENT
+    // --------------------------------------------------------
 
     if (
         clickTarget &&
-        Math.hypot(
-            clickTarget.x -
-                playerPx.x,
-
-            clickTarget.y -
-                playerPx.y
-        ) > 1
+        (!supportsTouch || keyboardMode)
     ) {
 
         const tx =
@@ -1292,7 +1307,7 @@ function update2DMovement() {
             );
 
         if (
-            distance > 0
+            distance > 1
         ) {
 
             dx +=
@@ -1310,6 +1325,10 @@ function update2DMovement() {
                 SPEED;
         }
     }
+
+    // --------------------------------------------------------
+    // NORMALIZE
+    // --------------------------------------------------------
 
     const magnitude =
         Math.hypot(
@@ -1620,8 +1639,6 @@ function checkWin() {
             currentLevel + 1
         );
 
-        // Hide both controls only because
-        // the level is complete.
         toggle3D.hidden = true;
 
         if (thumbstick) {
