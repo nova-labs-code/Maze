@@ -23,9 +23,9 @@
 
     <div id="menu"></div>
 
-    <!-- Hidden until a level is loaded -->
+    <!-- Hidden on the level menu, shown inside a level -->
     <button id="toggle3D" type="button" hidden>
-        Toggle 3D
+        3D
     </button>
 
     <canvas id="c" width="500" height="500"></canvas>
@@ -39,12 +39,14 @@
 
     <div id="win" onclick="backToMenu()">
         LEVEL COMPLETE 🌟<br>
+
         <span style="font-size:18px;">
             Click to return
         </span>
     </div>
 
-    <script src="main.js?v=3"></script>
+    <!-- Incremented so Safari/Neocities loads the fixed script -->
+    <script src="main.js?v=4"></script>
 
     <script>
         // =====================================================
