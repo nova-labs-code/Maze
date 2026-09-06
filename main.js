@@ -18,36 +18,33 @@ sprite.src = "player.png";
 
 const HITBOX_SCALE = 0.75;
 
-/* ============================================================
-   DEVICE / TOUCH DETECTION
-   ============================================================ */
+/* ---------------- DEVICE DETECTION ---------------- */
 
 const isTouchDevice =
-    "ontouchstart" in window ||
-    navigator.maxTouchPoints > 0;
+    navigator.maxTouchPoints > 0 ||
+    "ontouchstart" in window;
 
+/*
+ * Detect actual phones/tablets.
+ *
+ * iPadOS can report itself as Macintosh, so maxTouchPoints
+ * is also checked for that case.
+ */
 const isPhoneOrTablet =
     /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(
         navigator.userAgent
     ) ||
     (
-        isTouchDevice &&
-        Math.min(
-            window.innerWidth,
-            window.innerHeight
-        ) <= 1024
+        /Macintosh/i.test(navigator.userAgent) &&
+        navigator.maxTouchPoints > 1
     );
 
 const supportsThumbstick =
-    isTouchDevice &&
-    isPhoneOrTablet;
+    isTouchDevice && isPhoneOrTablet;
 
-/* ============================================================
-   3D MODE
-   ============================================================ */
+/* ---------------- 3D MODE ---------------- */
 
 let is3D = false;
-
 let cameraAngle = 0;
 
 const FOV = Math.PI / 3;
@@ -57,336 +54,10 @@ const MAX_DEPTH = 30;
 const toggle3D =
     document.getElementById("toggle3D");
 
-/* ============================================================
-   THUMBSTICK
-   ============================================================ */
-
-let thumbstick = null;
-let thumbstickBase = null;
-let thumbstickKnob = null;
-
-let joystickActive = false;
-let joystickTouchId = null;
-
-let joystickX = 0;
-let joystickY = 0;
-
-const JOYSTICK_RADIUS = 65;
-const KNOB_RADIUS = 28;
-const JOYSTICK_DEADZONE = 0.12;
-
-/* Create thumbstick entirely from JS */
-
-if (supportsThumbstick) {
-
-    thumbstick = document.createElement("div");
-
-    thumbstick.id = "thumbstick";
-
-    thumbstick.style.position = "fixed";
-    thumbstick.style.left = "30px";
-    thumbstick.style.bottom =
-        "calc(30px + env(safe-area-inset-bottom))";
-
-    thumbstick.style.width =
-        `${JOYSTICK_RADIUS * 2}px`;
-
-    thumbstick.style.height =
-        `${JOYSTICK_RADIUS * 2}px`;
-
-    thumbstick.style.borderRadius = "50%";
-
-    thumbstick.style.background =
-        "rgba(255,255,255,0.10)";
-
-    thumbstick.style.border =
-        "2px solid rgba(255,255,255,0.20)";
-
-    thumbstick.style.boxShadow =
-        "0 0 20px rgba(80,120,255,0.20), inset 0 0 15px rgba(255,255,255,0.05)";
-
-    thumbstick.style.backdropFilter =
-        "blur(10px)";
-
-    thumbstick.style.webkitBackdropFilter =
-        "blur(10px)";
-
-    thumbstick.style.display = "none";
-
-    thumbstick.style.zIndex = "2000";
-
-    thumbstick.style.touchAction = "none";
-
-    thumbstick.style.userSelect = "none";
-
-    thumbstickBase = thumbstick;
-
-    thumbstickKnob =
-        document.createElement("div");
-
-    thumbstickKnob.style.position = "absolute";
-
-    thumbstickKnob.style.left = "50%";
-    thumbstickKnob.style.top = "50%";
-
-    thumbstickKnob.style.width =
-        `${KNOB_RADIUS * 2}px`;
-
-    thumbstickKnob.style.height =
-        `${KNOB_RADIUS * 2}px`;
-
-    thumbstickKnob.style.marginLeft =
-        `${-KNOB_RADIUS}px`;
-
-    thumbstickKnob.style.marginTop =
-        `${-KNOB_RADIUS}px`;
-
-    thumbstickKnob.style.borderRadius = "50%";
-
-    thumbstickKnob.style.background =
-        "rgba(255,255,255,0.28)";
-
-    thumbstickKnob.style.border =
-        "2px solid rgba(255,255,255,0.35)";
-
-    thumbstickKnob.style.boxShadow =
-        "0 0 15px rgba(80,120,255,0.25)";
-
-    thumbstickKnob.style.pointerEvents =
-        "none";
-
-    thumbstickBase.appendChild(
-        thumbstickKnob
-    );
-
-    document.body.appendChild(
-        thumbstick
-    );
-
-    thumbstick.addEventListener(
-        "touchstart",
-        joystickStart,
-        { passive: false }
-    );
-
-    thumbstick.addEventListener(
-        "touchmove",
-        joystickMove,
-        { passive: false }
-    );
-
-    thumbstick.addEventListener(
-        "touchend",
-        joystickEnd,
-        { passive: false }
-    );
-
-    thumbstick.addEventListener(
-        "touchcancel",
-        joystickEnd,
-        { passive: false }
-    );
-}
-
-/* ---------------- THUMBSTICK VISIBILITY ---------------- */
-
-function updateThumbstickVisibility() {
-
-    if (!thumbstick) return;
-
-    if (
-        data &&
-        is3D &&
-        supportsThumbstick
-    ) {
-        thumbstick.style.display = "block";
-    } else {
-        thumbstick.style.display = "none";
-
-        joystickActive = false;
-        joystickTouchId = null;
-
-        joystickX = 0;
-        joystickY = 0;
-
-        resetThumbstick();
-    }
-}
-
-/* ---------------- THUMBSTICK POSITION ---------------- */
-
-function setThumbstickPosition(
-    clientX,
-    clientY
-) {
-
-    if (!thumbstick) return;
-
-    const rect =
-        thumbstick.getBoundingClientRect();
-
-    const centerX =
-        rect.left + rect.width / 2;
-
-    const centerY =
-        rect.top + rect.height / 2;
-
-    let dx =
-        clientX - centerX;
-
-    let dy =
-        clientY - centerY;
-
-    const distance =
-        Math.sqrt(
-            dx * dx +
-            dy * dy
-        );
-
-    const maxDistance =
-        JOYSTICK_RADIUS -
-        KNOB_RADIUS;
-
-    if (distance > maxDistance) {
-
-        const scale =
-            maxDistance / distance;
-
-        dx *= scale;
-        dy *= scale;
-    }
-
-    joystickX =
-        dx / maxDistance;
-
-    joystickY =
-        dy / maxDistance;
-
-    const magnitude =
-        Math.sqrt(
-            joystickX * joystickX +
-            joystickY * joystickY
-        );
-
-    if (
-        magnitude <
-        JOYSTICK_DEADZONE
-    ) {
-        joystickX = 0;
-        joystickY = 0;
-    }
-
-    thumbstickKnob.style.transform =
-        `translate(${dx}px, ${dy}px)`;
-}
-
-/* ---------------- THUMBSTICK START ---------------- */
-
-function joystickStart(e) {
-
-    if (
-        !data ||
-        !is3D ||
-        !supportsThumbstick
-    ) {
-        return;
-    }
-
-    e.preventDefault();
-
-    const touch = e.changedTouches[0];
-
-    joystickActive = true;
-
-    joystickTouchId =
-        touch.identifier;
-
-    setThumbstickPosition(
-        touch.clientX,
-        touch.clientY
-    );
-}
-
-/* ---------------- THUMBSTICK MOVE ---------------- */
-
-function joystickMove(e) {
-
-    if (
-        !joystickActive ||
-        joystickTouchId === null
-    ) {
-        return;
-    }
-
-    e.preventDefault();
-
-    for (
-        const touch of e.changedTouches
-    ) {
-
-        if (
-            touch.identifier ===
-            joystickTouchId
-        ) {
-
-            setThumbstickPosition(
-                touch.clientX,
-                touch.clientY
-            );
-
-            break;
-        }
-    }
-}
-
-/* ---------------- THUMBSTICK END ---------------- */
-
-function joystickEnd(e) {
-
-    if (
-        joystickTouchId === null
-    ) {
-        return;
-    }
-
-    for (
-        const touch of e.changedTouches
-    ) {
-
-        if (
-            touch.identifier ===
-            joystickTouchId
-        ) {
-
-            joystickActive = false;
-            joystickTouchId = null;
-
-            joystickX = 0;
-            joystickY = 0;
-
-            resetThumbstick();
-
-            break;
-        }
-    }
-
-    e.preventDefault();
-}
-
-/* ---------------- RESET THUMBSTICK ---------------- */
-
-function resetThumbstick() {
-
-    if (!thumbstickKnob) return;
-
-    thumbstickKnob.style.transform =
-        "translate(0px, 0px)";
-}
-
-/* ============================================================
-   3D TOGGLE
-   ============================================================ */
-
+/*
+ * ALWAYS start hidden.
+ * It will only become visible after a level is loaded.
+ */
 toggle3D.style.display = "none";
 
 toggle3D.addEventListener("click", () => {
@@ -404,6 +75,387 @@ toggle3D.addEventListener("click", () => {
 
     draw();
 });
+
+/* ============================================================
+   MOBILE THUMBSTICK
+   ============================================================ */
+
+let joystick = null;
+let joystickBase = null;
+let joystickKnob = null;
+
+let joystickActive = false;
+let joystickPointerId = null;
+
+let joystickX = 0;
+let joystickY = 0;
+
+const JOYSTICK_SIZE = 130;
+const JOYSTICK_KNOB_SIZE = 58;
+const JOYSTICK_MAX_DISTANCE =
+    (JOYSTICK_SIZE - JOYSTICK_KNOB_SIZE) / 2;
+
+/* ---------------- CREATE THUMBSTICK ---------------- */
+
+function createThumbstick() {
+
+    /*
+     * Never create one on desktop.
+     */
+    if (!supportsThumbstick) {
+        return;
+    }
+
+    /*
+     * Prevent duplicates.
+     */
+    if (document.getElementById("mobileThumbstick")) {
+        joystick =
+            document.getElementById("mobileThumbstick");
+
+        joystickBase =
+            document.getElementById("joystickBase");
+
+        joystickKnob =
+            document.getElementById("joystickKnob");
+
+        return;
+    }
+
+    joystick =
+        document.createElement("div");
+
+    joystick.id =
+        "mobileThumbstick";
+
+    joystickBase =
+        document.createElement("div");
+
+    joystickBase.id =
+        "joystickBase";
+
+    joystickKnob =
+        document.createElement("div");
+
+    joystickKnob.id =
+        "joystickKnob";
+
+    joystick.appendChild(joystickBase);
+    joystickBase.appendChild(joystickKnob);
+
+    document.body.appendChild(joystick);
+
+    const style =
+        document.createElement("style");
+
+    style.id =
+        "mobileThumbstickStyle";
+
+    style.textContent = `
+
+        #mobileThumbstick {
+            position: fixed;
+
+            left: 25px;
+            bottom: 25px;
+
+            width: ${JOYSTICK_SIZE}px;
+            height: ${JOYSTICK_SIZE}px;
+
+            z-index: 5000;
+
+            display: none;
+
+            touch-action: none;
+
+            pointer-events: auto;
+
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        #joystickBase {
+            position: absolute;
+
+            left: 0;
+            top: 0;
+
+            width: 100%;
+            height: 100%;
+
+            border-radius: 50%;
+
+            background:
+                rgba(255,255,255,0.10);
+
+            border:
+                2px solid
+                rgba(255,255,255,0.22);
+
+            box-shadow:
+                0 0 20px
+                rgba(80,120,255,0.20),
+
+                inset 0 0 20px
+                rgba(255,255,255,0.05);
+
+            box-sizing: border-box;
+        }
+
+        #joystickKnob {
+            position: absolute;
+
+            left: 50%;
+            top: 50%;
+
+            width: ${JOYSTICK_KNOB_SIZE}px;
+            height: ${JOYSTICK_KNOB_SIZE}px;
+
+            margin-left:
+                -${JOYSTICK_KNOB_SIZE / 2}px;
+
+            margin-top:
+                -${JOYSTICK_KNOB_SIZE / 2}px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(255,255,255,0.24);
+
+            border:
+                2px solid
+                rgba(255,255,255,0.38);
+
+            box-shadow:
+                0 0 15px
+                rgba(80,120,255,0.25),
+
+                inset 0 1px 0
+                rgba(255,255,255,0.18);
+
+            box-sizing: border-box;
+
+            pointer-events: none;
+        }
+
+        @media (min-width: 600px) {
+            #mobileThumbstick {
+                left: 35px;
+                bottom: 35px;
+            }
+        }
+    `;
+
+    document.head.appendChild(style);
+
+    setupThumbstickEvents();
+}
+
+/* ---------------- THUMBSTICK EVENTS ---------------- */
+
+function setupThumbstickEvents() {
+
+    if (!joystick) return;
+
+    joystick.addEventListener(
+        "pointerdown",
+        joystickPointerDown
+    );
+
+    joystick.addEventListener(
+        "pointermove",
+        joystickPointerMove
+    );
+
+    joystick.addEventListener(
+        "pointerup",
+        joystickPointerUp
+    );
+
+    joystick.addEventListener(
+        "pointercancel",
+        joystickPointerUp
+    );
+
+    joystick.addEventListener(
+        "lostpointercapture",
+        joystickPointerUp
+    );
+}
+
+/* ---------------- POINTER DOWN ---------------- */
+
+function joystickPointerDown(e) {
+
+    if (!data || !is3D) return;
+
+    e.preventDefault();
+
+    joystickActive = true;
+
+    joystickPointerId =
+        e.pointerId;
+
+    joystick.setPointerCapture(
+        e.pointerId
+    );
+
+    updateJoystick(e);
+}
+
+/* ---------------- POINTER MOVE ---------------- */
+
+function joystickPointerMove(e) {
+
+    if (!joystickActive) return;
+
+    if (
+        e.pointerId !==
+        joystickPointerId
+    ) {
+        return;
+    }
+
+    e.preventDefault();
+
+    updateJoystick(e);
+}
+
+/* ---------------- POINTER UP ---------------- */
+
+function joystickPointerUp(e) {
+
+    if (
+        joystickPointerId !== null &&
+        e.pointerId !== joystickPointerId
+    ) {
+        return;
+    }
+
+    joystickActive = false;
+    joystickPointerId = null;
+
+    joystickX = 0;
+    joystickY = 0;
+
+    resetJoystick();
+
+    if (
+        joystick &&
+        joystick.hasPointerCapture &&
+        joystick.hasPointerCapture(e.pointerId)
+    ) {
+        try {
+            joystick.releasePointerCapture(
+                e.pointerId
+            );
+        } catch (_) {}
+    }
+}
+
+/* ---------------- UPDATE JOYSTICK ---------------- */
+
+function updateJoystick(e) {
+
+    if (!joystickBase) return;
+
+    const rect =
+        joystickBase.getBoundingClientRect();
+
+    const centerX =
+        rect.left + rect.width / 2;
+
+    const centerY =
+        rect.top + rect.height / 2;
+
+    let dx =
+        e.clientX - centerX;
+
+    let dy =
+        e.clientY - centerY;
+
+    const distance =
+        Math.sqrt(
+            dx * dx +
+            dy * dy
+        );
+
+    if (
+        distance >
+        JOYSTICK_MAX_DISTANCE
+    ) {
+
+        const scale =
+            JOYSTICK_MAX_DISTANCE /
+            distance;
+
+        dx *= scale;
+        dy *= scale;
+    }
+
+    joystickX =
+        dx / JOYSTICK_MAX_DISTANCE;
+
+    joystickY =
+        dy / JOYSTICK_MAX_DISTANCE;
+
+    joystickKnob.style.transform =
+        `translate(${dx}px, ${dy}px)`;
+}
+
+/* ---------------- RESET JOYSTICK ---------------- */
+
+function resetJoystick() {
+
+    if (!joystickKnob) return;
+
+    joystickKnob.style.transform =
+        "translate(0px, 0px)";
+}
+
+/* ---------------- VISIBILITY ---------------- */
+
+function updateThumbstickVisibility() {
+
+    if (!joystick) return;
+
+    /*
+     * Show ONLY when:
+     *
+     * 1. Device is touch-capable
+     * 2. Device is a phone/tablet
+     * 3. A level is loaded
+     * 4. 3D mode is active
+     */
+    if (
+        supportsThumbstick &&
+        data &&
+        is3D
+    ) {
+
+        joystick.style.display =
+            "block";
+
+    } else {
+
+        joystick.style.display =
+            "none";
+
+        joystickActive = false;
+
+        joystickPointerId = null;
+
+        joystickX = 0;
+        joystickY = 0;
+
+        resetJoystick();
+    }
+}
+
+/* ---------------- CREATE IT ---------------- */
+
+createThumbstick();
 
 /* ============================================================
    SAVE
@@ -503,7 +555,9 @@ function applyUrlToMenu() {
         req === null ||
         req === "latest"
     ) {
+
         target = latest;
+
     } else {
 
         target =
@@ -530,7 +584,25 @@ function buildMenu() {
             "menu"
         );
 
+    /*
+     * Make absolutely sure the 3D button
+     * is hidden while the menu is visible.
+     */
+    toggle3D.style.display =
+        "none";
+
+    /*
+     * Hide the thumbstick too.
+     */
+    if (joystick) {
+        joystick.style.display =
+            "none";
+    }
+
     menu.innerHTML = "";
+
+    menu.style.display =
+        "grid";
 
     applyUrlToMenu();
 
@@ -548,7 +620,8 @@ function buildMenu() {
                 "button"
             );
 
-        b.className = "level";
+        b.className =
+            "level";
 
         b.textContent =
             "Level " + i;
@@ -566,21 +639,11 @@ function buildMenu() {
 
         } else {
 
-            b.onclick = () =>
-                loadLevel(i);
+            b.onclick =
+                () => loadLevel(i);
         }
 
         menu.appendChild(b);
-    }
-
-    /* Controls are hidden on menu */
-
-    toggle3D.style.display =
-        "none";
-
-    if (thumbstick) {
-        thumbstick.style.display =
-            "none";
     }
 }
 
@@ -593,9 +656,12 @@ async function loadLevel(id) {
     const safe =
         getSafeLevel(id);
 
-    if (safe === null) return;
+    if (safe === null) {
+        return;
+    }
 
-    currentLevel = safe;
+    currentLevel =
+        safe;
 
     syncUrl(safe);
 
@@ -613,23 +679,45 @@ async function loadLevel(id) {
 
     cameraAngle = 0;
 
+    /*
+     * Always start a newly loaded level
+     * in 2D mode.
+     */
+    is3D = false;
+
+    toggle3D.textContent =
+        "Toggle 3D";
+
+    /*
+     * Hide menu.
+     */
     document.getElementById(
         "menu"
-    ).style.display = "none";
+    ).style.display =
+        "none";
 
+    /*
+     * Show canvas.
+     */
     canvas.style.display =
         "block";
 
-    document.getElementById(
-        "win"
-    ).style.display = "none";
-
-    /* Show toggle only inside level */
-
+    /*
+     * NOW show the 3D toggle.
+     */
     toggle3D.style.display =
         "block";
 
+    /*
+     * Thumbstick remains hidden
+     * until 3D is activated.
+     */
     updateThumbstickVisibility();
+
+    document.getElementById(
+        "win"
+    ).style.display =
+        "none";
 
     draw();
 }
@@ -653,8 +741,11 @@ function parseGrid() {
             )
         );
 
-    data.rows = rows;
-    data.cols = cols;
+    data.rows =
+        rows;
+
+    data.cols =
+        cols;
 
     const tileSize =
         Math.min(
@@ -685,8 +776,11 @@ function parseGrid() {
                 };
 
                 playerPx = {
-                    x: x * tileSize,
-                    y: y * tileSize
+                    x:
+                        x * tileSize,
+
+                    y:
+                        y * tileSize
                 };
             }
 
@@ -702,12 +796,13 @@ function parseGrid() {
 }
 
 /* ============================================================
-   KEYBOARD
+   INPUT
    ============================================================ */
 
 window.addEventListener(
     "keydown",
     e => {
+
         keys[e.key] = true;
     }
 );
@@ -715,12 +810,13 @@ window.addEventListener(
 window.addEventListener(
     "keyup",
     e => {
+
         keys[e.key] = false;
     }
 );
 
 /* ============================================================
-   MOUSE CONTROLS
+   CLICK CONTROLS
    ============================================================ */
 
 let clickTarget = null;
@@ -731,8 +827,20 @@ document.addEventListener(
 
         if (
             e.target === toggle3D ||
-            e.target === thumbstick ||
-            thumbstick?.contains(e.target)
+            e.target === joystick ||
+            e.target === joystickBase ||
+            e.target === joystickKnob
+        ) {
+            return;
+        }
+
+        /*
+         * On touch phones/tablets in 3D,
+         * the thumbstick handles movement.
+         */
+        if (
+            supportsThumbstick &&
+            is3D
         ) {
             return;
         }
@@ -747,6 +855,7 @@ document.addEventListener(
 document.addEventListener(
     "mouseup",
     () => {
+
         clickTarget = null;
     }
 );
@@ -755,7 +864,16 @@ document.addEventListener(
     "mousemove",
     e => {
 
-        if (e.buttons !== 1) return;
+        if (e.buttons !== 1) {
+            return;
+        }
+
+        if (
+            supportsThumbstick &&
+            is3D
+        ) {
+            return;
+        }
 
         clickTarget = {
             x: e.clientX,
@@ -772,54 +890,19 @@ document.addEventListener(
     "touchstart",
     e => {
 
-        if (
-            e.target === toggle3D ||
-            e.target === thumbstick ||
-            thumbstick?.contains(e.target)
-        ) {
-            return;
-        }
-
         /*
-         * In 3D mode on touch devices,
-         * movement is handled by the thumbstick.
+         * The thumbstick handles movement
+         * on supported mobile devices in 3D.
          */
-
         if (
-            is3D &&
-            supportsThumbstick
-        ) {
-            return;
-        }
-
-        const touch =
-            e.touches[0];
-
-        clickTarget = {
-            x: touch.clientX,
-            y: touch.clientY
-        };
-
-    },
-    {
-        passive: false
-    }
-);
-
-document.addEventListener(
-    "touchmove",
-    e => {
-
-        if (
-            e.target === thumbstick ||
-            thumbstick?.contains(e.target)
+            supportsThumbstick &&
+            is3D
         ) {
             return;
         }
 
         if (
-            is3D &&
-            supportsThumbstick
+            e.target === toggle3D
         ) {
             return;
         }
@@ -833,7 +916,32 @@ document.addEventListener(
             x: touch.clientX,
             y: touch.clientY
         };
+    },
+    {
+        passive: false
+    }
+);
 
+document.addEventListener(
+    "touchmove",
+    e => {
+
+        if (
+            supportsThumbstick &&
+            is3D
+        ) {
+            return;
+        }
+
+        const touch =
+            e.touches[0];
+
+        if (!touch) return;
+
+        clickTarget = {
+            x: touch.clientX,
+            y: touch.clientY
+        };
     },
     {
         passive: false
@@ -842,11 +950,11 @@ document.addEventListener(
 
 document.addEventListener(
     "touchend",
-    e => {
+    () => {
 
         if (
-            e.target === thumbstick ||
-            thumbstick?.contains(e.target)
+            supportsThumbstick &&
+            is3D
         ) {
             return;
         }
@@ -927,6 +1035,7 @@ function collides(px, py) {
                 !data.grid[y] ||
                 data.grid[y][x] === "1"
             ) {
+
                 return true;
             }
         }
@@ -943,8 +1052,11 @@ function tryMove(dx, dy) {
 
     const tileSize =
         Math.min(
-            canvas.width / data.cols,
-            canvas.height / data.rows
+            canvas.width /
+                data.cols,
+
+            canvas.height /
+                data.rows
         );
 
     const steps =
@@ -955,7 +1067,9 @@ function tryMove(dx, dy) {
             )
         );
 
-    if (steps === 0) return;
+    if (steps === 0) {
+        return;
+    }
 
     const stepX =
         dx / steps;
@@ -983,7 +1097,9 @@ function tryMove(dx, dy) {
                 playerPx.y
             )
         ) {
-            playerPx.x = nx;
+
+            playerPx.x =
+                nx;
         }
 
         if (
@@ -992,21 +1108,23 @@ function tryMove(dx, dy) {
                 ny
             )
         ) {
-            playerPx.y = ny;
+
+            playerPx.y =
+                ny;
         }
     }
 }
 
 function move() {
 
-    if (!data) return;
+    if (!data) {
+        return;
+    }
 
     let dx = 0;
     let dy = 0;
 
-    /* ========================================================
-       KEYBOARD
-       ======================================================== */
+    /* ---------------- KEYBOARD ---------------- */
 
     if (keys["ArrowUp"]) {
         dy -= SPEED;
@@ -1024,37 +1142,30 @@ function move() {
         dx += SPEED;
     }
 
-    /* ========================================================
-       THUMBSTICK
-       ======================================================== */
+    /* ---------------- THUMBSTICK ---------------- */
 
     if (
-        is3D &&
         supportsThumbstick &&
+        is3D &&
         joystickActive
     ) {
 
-        /*
-         * Use analog joystick values.
-         * Up = negative Y.
-         */
-
         dx =
-            joystickX * SPEED;
+            joystickX *
+            SPEED;
 
         dy =
-            joystickY * SPEED;
+            joystickY *
+            SPEED;
     }
 
-    /* ========================================================
-       CLICK / NON-3D TOUCH
-       ======================================================== */
+    /* ---------------- CLICK / TOUCH ---------------- */
 
     if (
         clickTarget &&
         !(
-            is3D &&
-            supportsThumbstick
+            supportsThumbstick &&
+            is3D
         )
     ) {
 
@@ -1076,14 +1187,20 @@ function move() {
                 centerY
             );
 
-        if (distX > distY) {
+        if (
+            distX >
+            distY
+        ) {
 
             if (
                 clickTarget.x >
                 centerX
             ) {
+
                 dx = SPEED;
+
             } else {
+
                 dx = -SPEED;
             }
 
@@ -1093,8 +1210,11 @@ function move() {
                 clickTarget.y >
                 centerY
             ) {
+
                 dy = SPEED;
+
             } else {
+
                 dy = -SPEED;
             }
         }
@@ -1107,8 +1227,11 @@ function move() {
 
     const tileSize =
         Math.min(
-            canvas.width / data.cols,
-            canvas.height / data.rows
+            canvas.width /
+                data.cols,
+
+            canvas.height /
+                data.rows
         );
 
     player.x =
@@ -1134,12 +1257,17 @@ let hasWon = false;
 
 function checkWin() {
 
-    if (hasWon) return;
+    if (hasWon) {
+        return;
+    }
 
     const tileSize =
         Math.min(
-            canvas.width / data.cols,
-            canvas.height / data.rows
+            canvas.width /
+                data.cols,
+
+            canvas.height /
+                data.rows
         );
 
     const size =
@@ -1171,10 +1299,13 @@ function checkWin() {
     const touched =
         left <
             ex + tileSize &&
+
         right >
             ex &&
+
         top <
             ey + tileSize &&
+
         bottom >
             ey;
 
@@ -1193,10 +1324,16 @@ function checkWin() {
         if (
             currentLevel >= u
         ) {
+
             setUnlocked(
                 u + 1
             );
         }
+
+        /*
+         * Hide mobile controls after winning.
+         */
+        updateThumbstickVisibility();
     }
 }
 
@@ -1211,8 +1348,6 @@ function returnToMenu() {
     data = null;
 
     keys = {};
-
-    clickTarget = null;
 
     player = {
         x: 0,
@@ -1231,13 +1366,13 @@ function returnToMenu() {
     toggle3D.textContent =
         "Toggle 3D";
 
-    joystickActive = false;
-    joystickTouchId = null;
+    toggle3D.style.display =
+        "none";
 
-    joystickX = 0;
-    joystickY = 0;
-
-    resetThumbstick();
+    if (joystick) {
+        joystick.style.display =
+            "none";
+    }
 
     history.replaceState(
         null,
@@ -1247,14 +1382,6 @@ function returnToMenu() {
 
     canvas.style.display =
         "none";
-
-    toggle3D.style.display =
-        "none";
-
-    if (thumbstick) {
-        thumbstick.style.display =
-            "none";
-    }
 
     document.getElementById(
         "win"
@@ -1281,31 +1408,21 @@ function backToMenu() {
 
     keys = {};
 
-    clickTarget = null;
-
     is3D = false;
 
     toggle3D.textContent =
         "Toggle 3D";
 
-    joystickActive = false;
-    joystickTouchId = null;
-
-    joystickX = 0;
-    joystickY = 0;
-
-    resetThumbstick();
-
-    canvas.style.display =
-        "none";
-
     toggle3D.style.display =
         "none";
 
-    if (thumbstick) {
-        thumbstick.style.display =
+    if (joystick) {
+        joystick.style.display =
             "none";
     }
+
+    canvas.style.display =
+        "none";
 
     document.getElementById(
         "win"
@@ -1387,8 +1504,10 @@ function draw2D() {
                 ctx.fillRect(
                     offsetX +
                         x * tileSize,
+
                     offsetY +
                         y * tileSize,
+
                     tileSize,
                     tileSize
                 );
@@ -1405,8 +1524,10 @@ function draw2D() {
                 ctx.fillRect(
                     offsetX +
                         x * tileSize,
+
                     offsetY +
                         y * tileSize,
+
                     tileSize,
                     tileSize
                 );
@@ -1456,7 +1577,7 @@ function draw2D() {
 }
 
 /* ============================================================
-   CANVAS 3D RAYCASTER
+   3D RAYCASTER
    ============================================================ */
 
 function draw3D() {
@@ -1474,9 +1595,7 @@ function draw3D() {
     const height =
         canvas.height;
 
-    /* ========================================================
-       SKY
-       ======================================================== */
+    /* ---------------- SKY ---------------- */
 
     const sky =
         ctx.createLinearGradient(
@@ -1496,7 +1615,8 @@ function draw3D() {
         "#111a30"
     );
 
-    ctx.fillStyle = sky;
+    ctx.fillStyle =
+        sky;
 
     ctx.fillRect(
         0,
@@ -1505,9 +1625,7 @@ function draw3D() {
         height / 2
     );
 
-    /* ========================================================
-       FLOOR
-       ======================================================== */
+    /* ---------------- FLOOR ---------------- */
 
     const floor =
         ctx.createLinearGradient(
@@ -1527,7 +1645,8 @@ function draw3D() {
         "#05070d"
     );
 
-    ctx.fillStyle = floor;
+    ctx.fillStyle =
+        floor;
 
     ctx.fillRect(
         0,
@@ -1540,13 +1659,12 @@ function draw3D() {
         Math.min(
             canvas.width /
                 data.cols,
+
             canvas.height /
                 data.rows
         );
 
-    /* ========================================================
-       PLAYER WORLD POSITION
-       ======================================================== */
+    /* ---------------- PLAYER WORLD POSITION ---------------- */
 
     const px =
         (
@@ -1560,12 +1678,13 @@ function draw3D() {
             tileSize / 2
         ) / tileSize;
 
-    const posX = px;
-    const posY = py;
+    const posX =
+        px;
 
-    /* ========================================================
-       RAYCAST
-       ======================================================== */
+    const posY =
+        py;
+
+    /* ---------------- RAYS ---------------- */
 
     for (
         let ray = 0;
@@ -1582,7 +1701,7 @@ function draw3D() {
         const rayAngle =
             cameraAngle +
             cameraX *
-                (FOV / 2);
+            (FOV / 2);
 
         const rayDirX =
             Math.cos(
@@ -1595,10 +1714,14 @@ function draw3D() {
             );
 
         let mapX =
-            Math.floor(posX);
+            Math.floor(
+                posX
+            );
 
         let mapY =
-            Math.floor(posY);
+            Math.floor(
+                posY
+            );
 
         const deltaDistX =
             Math.abs(
@@ -1624,7 +1747,9 @@ function draw3D() {
         let sideDistX;
         let sideDistY;
 
-        if (rayDirX < 0) {
+        if (
+            rayDirX < 0
+        ) {
 
             stepX = -1;
 
@@ -1648,7 +1773,9 @@ function draw3D() {
                 deltaDistX;
         }
 
-        if (rayDirY < 0) {
+        if (
+            rayDirY < 0
+        ) {
 
             stepY = -1;
 
@@ -1673,9 +1800,7 @@ function draw3D() {
         }
 
         let hit = false;
-
         let side = 0;
-
         let distance = 0;
 
         for (
@@ -1720,7 +1845,9 @@ function draw3D() {
             }
         }
 
-        if (!hit) continue;
+        if (!hit) {
+            continue;
+        }
 
         if (side === 0) {
 
@@ -1735,7 +1862,7 @@ function draw3D() {
                 deltaDistY;
         }
 
-        /* Fish-eye correction */
+        /* ---------------- FISHEYE CORRECTION ---------------- */
 
         distance *=
             Math.cos(
@@ -1749,7 +1876,7 @@ function draw3D() {
                 0.0001
             );
 
-        /* Perspective */
+        /* ---------------- WALL HEIGHT ---------------- */
 
         const wallHeight =
             height /
@@ -1763,7 +1890,7 @@ function draw3D() {
             height / 2 +
             wallHeight / 2;
 
-        /* Distance shading */
+        /* ---------------- SHADING ---------------- */
 
         const brightness =
             Math.max(
@@ -1771,10 +1898,10 @@ function draw3D() {
                 Math.min(
                     1,
                     1 /
-                        (
-                            distance *
-                            0.22
-                        )
+                    (
+                        distance *
+                        0.22
+                    )
                 )
             );
 
@@ -1806,20 +1933,21 @@ function draw3D() {
 
         const rayWidth =
             width /
-                RAY_COUNT +
+            RAY_COUNT +
             1;
 
         ctx.fillRect(
             ray *
                 width /
                 RAY_COUNT,
+
             top,
+
             rayWidth,
+
             bottom - top
         );
     }
-
-    /* Exit */
 
     draw3DExit(
         posX,
@@ -1872,6 +2000,7 @@ function draw3DExit(
     while (
         angle > Math.PI
     ) {
+
         angle -=
             Math.PI * 2;
     }
@@ -1879,6 +2008,7 @@ function draw3DExit(
     while (
         angle < -Math.PI
     ) {
+
         angle +=
             Math.PI * 2;
     }
@@ -1893,18 +2023,19 @@ function draw3DExit(
     const screenX =
         canvas.width / 2 +
         Math.tan(angle) *
-            (
-                canvas.width / 2
-            ) /
-            Math.tan(
-                FOV / 2
-            );
+        (
+            canvas.width / 2
+        ) /
+        Math.tan(
+            FOV / 2
+        );
 
     const size =
         Math.min(
             canvas.height *
                 0.7 /
                 distance,
+
             canvas.height
         );
 
@@ -1952,9 +2083,12 @@ function draw3DExit(
     ctx.fillRect(
         screenX -
             size * 0.15,
+
         y +
             size * 0.2,
+
         size * 0.3,
+
         size * 0.6
     );
 }
@@ -1965,7 +2099,9 @@ function draw3DExit(
 
 function draw() {
 
-    if (!data) return;
+    if (!data) {
+        return;
+    }
 
     if (is3D) {
 
@@ -2011,11 +2147,25 @@ const safe =
 
 if (safe === null) {
 
+    /*
+     * Menu state:
+     * 3D toggle hidden
+     * thumbstick hidden
+     */
+    toggle3D.style.display =
+        "none";
+
+    if (joystick) {
+        joystick.style.display =
+            "none";
+    }
+
     buildMenu();
 
 } else {
 
+    /*
+     * Level state.
+     */
     loadLevel(safe);
-
-    buildMenu();
 }
