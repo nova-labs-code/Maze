@@ -1,88 +1,43 @@
+// ============================================================
+// MAZE GAME
+// 2D + 3D
+// ============================================================
+
 const max = 4;
 
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
-let data;
-let currentLevel = 1;
+const menu = document.getElementById("menu");
+const win = document.getElementById("win");
+const toggle3D = document.getElementById("toggle3D");
 
-let player = { x: 0, y: 0 };
-let playerPx = { x: 0, y: 0 };
-let exit = { x: 0, y: 0 };
+// ============================================================
+// DEVICE / INPUT DETECTION
+// ============================================================
 
-let keys = {};
-const SPEED = 5;
-
-const sprite = new Image();
-sprite.src = "player.png";
-
-const HITBOX_SCALE = 0.75;
-
-/* ---------------- DEVICE DETECTION ---------------- */
-
-const isTouchDevice =
+// Reliable touch-capability detection.
+// maxTouchPoints is 0 on normal non-touch computers.
+const supportsTouch =
     navigator.maxTouchPoints > 0 ||
     "ontouchstart" in window;
 
-/*
- * Detect actual phones/tablets.
- *
- * iPadOS can report itself as Macintosh, so maxTouchPoints
- * is also checked for that case.
- */
-const isPhoneOrTablet =
-    /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(
-        navigator.userAgent
-    ) ||
-    (
-        /Macintosh/i.test(navigator.userAgent) &&
-        navigator.maxTouchPoints > 1
-    );
+// Once a keyboard is actually used, keyboard mode takes priority
+// until another touch is detected.
+let keyboardMode = false;
 
-const supportsThumbstick =
-    isTouchDevice && isPhoneOrTablet;
+// ============================================================
+// MOBILE THUMBSTICK
+// ============================================================
 
-/* ---------------- 3D MODE ---------------- */
+const thumbstick =
+    document.getElementById("mobileThumbstick");
 
-let is3D = false;
-let cameraAngle = 0;
+const joystickBase =
+    document.getElementById("joystickBase");
 
-const FOV = Math.PI / 3;
-const RAY_COUNT = 500;
-const MAX_DEPTH = 30;
-
-const toggle3D =
-    document.getElementById("toggle3D");
-
-/*
- * ALWAYS start hidden.
- * It will only become visible after a level is loaded.
- */
-toggle3D.style.display = "none";
-
-toggle3D.addEventListener("click", () => {
-
-    if (!data) return;
-
-    is3D = !is3D;
-
-    toggle3D.textContent =
-        is3D
-            ? "Toggle 2D"
-            : "Toggle 3D";
-
-    updateThumbstickVisibility();
-
-    draw();
-});
-
-/* ============================================================
-   MOBILE THUMBSTICK
-   ============================================================ */
-
-let joystick = null;
-let joystickBase = null;
-let joystickKnob = null;
+const joystickKnob =
+    document.getElementById("joystickKnob");
 
 let joystickActive = false;
 let joystickPointerId = null;
@@ -90,304 +45,90 @@ let joystickPointerId = null;
 let joystickX = 0;
 let joystickY = 0;
 
-const JOYSTICK_SIZE = 130;
-const JOYSTICK_KNOB_SIZE = 58;
-const JOYSTICK_MAX_DISTANCE =
-    (JOYSTICK_SIZE - JOYSTICK_KNOB_SIZE) / 2;
+const JOYSTICK_RADIUS = 65;
+const JOYSTICK_DEADZONE = 0.12;
 
-/* ---------------- CREATE THUMBSTICK ---------------- */
+// ============================================================
+// THUMBSTICK VISIBILITY
+// ============================================================
 
-function createThumbstick() {
-
-    /*
-     * Never create one on desktop.
-     */
-    if (!supportsThumbstick) {
-        return;
-    }
-
-    /*
-     * Prevent duplicates.
-     */
-    if (document.getElementById("mobileThumbstick")) {
-        joystick =
-            document.getElementById("mobileThumbstick");
-
-        joystickBase =
-            document.getElementById("joystickBase");
-
-        joystickKnob =
-            document.getElementById("joystickKnob");
-
-        return;
-    }
-
-    joystick =
-        document.createElement("div");
-
-    joystick.id =
-        "mobileThumbstick";
-
-    joystickBase =
-        document.createElement("div");
-
-    joystickBase.id =
-        "joystickBase";
-
-    joystickKnob =
-        document.createElement("div");
-
-    joystickKnob.id =
-        "joystickKnob";
-
-    joystick.appendChild(joystickBase);
-    joystickBase.appendChild(joystickKnob);
-
-    document.body.appendChild(joystick);
-
-    const style =
-        document.createElement("style");
-
-    style.id =
-        "mobileThumbstickStyle";
-
-    style.textContent = `
-
-        #mobileThumbstick {
-            position: fixed;
-
-            left: 25px;
-            bottom: 25px;
-
-            width: ${JOYSTICK_SIZE}px;
-            height: ${JOYSTICK_SIZE}px;
-
-            z-index: 5000;
-
-            display: none;
-
-            touch-action: none;
-
-            pointer-events: auto;
-
-            user-select: none;
-            -webkit-user-select: none;
-            -webkit-touch-callout: none;
-        }
-
-        #joystickBase {
-            position: absolute;
-
-            left: 0;
-            top: 0;
-
-            width: 100%;
-            height: 100%;
-
-            border-radius: 50%;
-
-            background:
-                rgba(255,255,255,0.10);
-
-            border:
-                2px solid
-                rgba(255,255,255,0.22);
-
-            box-shadow:
-                0 0 20px
-                rgba(80,120,255,0.20),
-
-                inset 0 0 20px
-                rgba(255,255,255,0.05);
-
-            box-sizing: border-box;
-        }
-
-        #joystickKnob {
-            position: absolute;
-
-            left: 50%;
-            top: 50%;
-
-            width: ${JOYSTICK_KNOB_SIZE}px;
-            height: ${JOYSTICK_KNOB_SIZE}px;
-
-            margin-left:
-                -${JOYSTICK_KNOB_SIZE / 2}px;
-
-            margin-top:
-                -${JOYSTICK_KNOB_SIZE / 2}px;
-
-            border-radius: 50%;
-
-            background:
-                rgba(255,255,255,0.24);
-
-            border:
-                2px solid
-                rgba(255,255,255,0.38);
-
-            box-shadow:
-                0 0 15px
-                rgba(80,120,255,0.25),
-
-                inset 0 1px 0
-                rgba(255,255,255,0.18);
-
-            box-sizing: border-box;
-
-            pointer-events: none;
-        }
-
-        @media (min-width: 600px) {
-            #mobileThumbstick {
-                left: 35px;
-                bottom: 35px;
-            }
-        }
-    `;
-
-    document.head.appendChild(style);
-
-    setupThumbstickEvents();
-}
-
-/* ---------------- THUMBSTICK EVENTS ---------------- */
-
-function setupThumbstickEvents() {
-
-    if (!joystick) return;
-
-    joystick.addEventListener(
-        "pointerdown",
-        joystickPointerDown
-    );
-
-    joystick.addEventListener(
-        "pointermove",
-        joystickPointerMove
-    );
-
-    joystick.addEventListener(
-        "pointerup",
-        joystickPointerUp
-    );
-
-    joystick.addEventListener(
-        "pointercancel",
-        joystickPointerUp
-    );
-
-    joystick.addEventListener(
-        "lostpointercapture",
-        joystickPointerUp
+function shouldShowThumbstick() {
+    return (
+        supportsTouch &&
+        !keyboardMode &&
+        data !== null &&
+        is3D &&
+        !levelWon &&
+        canvas.style.display !== "none" &&
+        win.style.display !== "flex"
     );
 }
 
-/* ---------------- POINTER DOWN ---------------- */
+function updateThumbstickVisibility() {
+    if (!thumbstick) return;
 
-function joystickPointerDown(e) {
+    thumbstick.hidden =
+        !shouldShowThumbstick();
 
-    if (!data || !is3D) return;
-
-    e.preventDefault();
-
-    joystickActive = true;
-
-    joystickPointerId =
-        e.pointerId;
-
-    joystick.setPointerCapture(
-        e.pointerId
-    );
-
-    updateJoystick(e);
+    if (!shouldShowThumbstick()) {
+        resetJoystick();
+    }
 }
 
-/* ---------------- POINTER MOVE ---------------- */
+// ============================================================
+// RESET JOYSTICK
+// ============================================================
 
-function joystickPointerMove(e) {
-
-    if (!joystickActive) return;
-
-    if (
-        e.pointerId !==
-        joystickPointerId
-    ) {
-        return;
-    }
-
-    e.preventDefault();
-
-    updateJoystick(e);
-}
-
-/* ---------------- POINTER UP ---------------- */
-
-function joystickPointerUp(e) {
-
-    if (
-        joystickPointerId !== null &&
-        e.pointerId !== joystickPointerId
-    ) {
-        return;
-    }
-
+function resetJoystick() {
     joystickActive = false;
     joystickPointerId = null;
 
     joystickX = 0;
     joystickY = 0;
 
-    resetJoystick();
-
-    if (
-        joystick &&
-        joystick.hasPointerCapture &&
-        joystick.hasPointerCapture(e.pointerId)
-    ) {
-        try {
-            joystick.releasePointerCapture(
-                e.pointerId
-            );
-        } catch (_) {}
+    if (joystickKnob) {
+        joystickKnob.style.transform =
+            "translate(-50%, -50%)";
     }
 }
 
-/* ---------------- UPDATE JOYSTICK ---------------- */
+// ============================================================
+// JOYSTICK POSITION
+// ============================================================
 
-function updateJoystick(e) {
-
-    if (!joystickBase) return;
+function updateJoystickPosition(e) {
+    if (!joystickBase || !joystickKnob) {
+        return;
+    }
 
     const rect =
         joystickBase.getBoundingClientRect();
 
     const centerX =
-        rect.left + rect.width / 2;
+        rect.left +
+        rect.width / 2;
 
     const centerY =
-        rect.top + rect.height / 2;
+        rect.top +
+        rect.height / 2;
 
     let dx =
-        e.clientX - centerX;
+        e.clientX -
+        centerX;
 
     let dy =
-        e.clientY - centerY;
+        e.clientY -
+        centerY;
 
     const distance =
-        Math.sqrt(
-            dx * dx +
-            dy * dy
-        );
+        Math.hypot(dx, dy);
 
     if (
         distance >
-        JOYSTICK_MAX_DISTANCE
+        JOYSTICK_RADIUS
     ) {
-
         const scale =
-            JOYSTICK_MAX_DISTANCE /
+            JOYSTICK_RADIUS /
             distance;
 
         dx *= scale;
@@ -395,367 +136,785 @@ function updateJoystick(e) {
     }
 
     joystickX =
-        dx / JOYSTICK_MAX_DISTANCE;
+        dx /
+        JOYSTICK_RADIUS;
 
     joystickY =
-        dy / JOYSTICK_MAX_DISTANCE;
+        dy /
+        JOYSTICK_RADIUS;
 
-    joystickKnob.style.transform =
-        `translate(${dx}px, ${dy}px)`;
-}
+    const magnitude =
+        Math.hypot(
+            joystickX,
+            joystickY
+        );
 
-/* ---------------- RESET JOYSTICK ---------------- */
-
-function resetJoystick() {
-
-    if (!joystickKnob) return;
-
-    joystickKnob.style.transform =
-        "translate(0px, 0px)";
-}
-
-/* ---------------- VISIBILITY ---------------- */
-
-function updateThumbstickVisibility() {
-
-    if (!joystick) return;
-
-    /*
-     * Show ONLY when:
-     *
-     * 1. Device is touch-capable
-     * 2. Device is a phone/tablet
-     * 3. A level is loaded
-     * 4. 3D mode is active
-     */
     if (
-        supportsThumbstick &&
-        data &&
-        is3D
+        magnitude <
+        JOYSTICK_DEADZONE
     ) {
-
-        joystick.style.display =
-            "block";
-
-    } else {
-
-        joystick.style.display =
-            "none";
-
-        joystickActive = false;
-
-        joystickPointerId = null;
-
         joystickX = 0;
         joystickY = 0;
+    }
+
+    joystickKnob.style.transform =
+        `translate(
+            calc(-50% + ${dx}px),
+            calc(-50% + ${dy}px)
+        )`;
+}
+
+// ============================================================
+// THUMBSTICK EVENTS
+// ============================================================
+
+if (thumbstick) {
+
+    thumbstick.hidden = true;
+
+    thumbstick.addEventListener(
+        "pointerdown",
+        function (e) {
+
+            if (!supportsTouch) {
+                return;
+            }
+
+            if (!data || !is3D) {
+                return;
+            }
+
+            if (e.pointerType !== "touch") {
+                return;
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            keyboardMode = false;
+
+            if (joystickActive) {
+                return;
+            }
+
+            joystickActive = true;
+
+            joystickPointerId =
+                e.pointerId;
+
+            try {
+                thumbstick.setPointerCapture(
+                    e.pointerId
+                );
+            } catch (_) {}
+
+            updateJoystickPosition(e);
+        },
+        {
+            passive: false
+        }
+    );
+
+    thumbstick.addEventListener(
+        "pointermove",
+        function (e) {
+
+            if (
+                !joystickActive ||
+                e.pointerId !==
+                    joystickPointerId
+            ) {
+                return;
+            }
+
+            if (
+                e.pointerType !== "touch"
+            ) {
+                return;
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            updateJoystickPosition(e);
+        },
+        {
+            passive: false
+        }
+    );
+
+    thumbstick.addEventListener(
+        "pointerup",
+        function (e) {
+
+            if (
+                e.pointerId !==
+                joystickPointerId
+            ) {
+                return;
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            resetJoystick();
+        },
+        {
+            passive: false
+        }
+    );
+
+    thumbstick.addEventListener(
+        "pointercancel",
+        function (e) {
+
+            if (
+                e.pointerId !==
+                joystickPointerId
+            ) {
+                return;
+            }
+
+            resetJoystick();
+        },
+        {
+            passive: false
+        }
+    );
+
+    thumbstick.addEventListener(
+        "lostpointercapture",
+        function () {
+            resetJoystick();
+        }
+    );
+}
+
+// ============================================================
+// LEVEL DATA
+// ============================================================
+
+let data = null;
+let currentLevel = 1;
+
+let player = {
+    x: 1,
+    y: 1
+};
+
+let playerPx = {
+    x: 0,
+    y: 0
+};
+
+let exit = {
+    x: 0,
+    y: 0
+};
+
+let tileSize = 50;
+
+// ============================================================
+// 2D MOVEMENT
+// ============================================================
+
+const SPEED = 5;
+
+let keys = {};
+
+let clickTarget = null;
+
+// ============================================================
+// KEYBOARD INPUT
+// ============================================================
+
+document.addEventListener(
+    "keydown",
+    function (e) {
+
+        // Any actual keyboard use switches to keyboard mode.
+        keyboardMode = true;
 
         resetJoystick();
+
+        updateThumbstickVisibility();
+
+        keys[e.key] = true;
+
+        if (
+            [
+                "ArrowUp",
+                "ArrowDown",
+                "ArrowLeft",
+                "ArrowRight"
+            ].includes(e.key)
+        ) {
+            e.preventDefault();
+        }
+    }
+);
+
+document.addEventListener(
+    "keyup",
+    function (e) {
+        keys[e.key] = false;
+    }
+);
+
+// ============================================================
+// TOUCH INPUT
+// ============================================================
+
+// A real touch pointer switches back to touch controls.
+// This means the thumbstick can return after a keyboard was used.
+document.addEventListener(
+    "pointerdown",
+    function (e) {
+
+        if (
+            e.pointerType !== "touch"
+        ) {
+            return;
+        }
+
+        keyboardMode = false;
+
+        updateThumbstickVisibility();
+    },
+    {
+        passive: true
+    }
+);
+
+// ============================================================
+// SPRITE
+// ============================================================
+
+const playerImage = new Image();
+
+playerImage.src =
+    "player.png";
+
+const HITBOX_SCALE = 0.75;
+
+// ============================================================
+// 3D STATE
+// ============================================================
+
+let is3D = false;
+
+let cameraYaw = 0;
+let cameraPitch = 0;
+
+const FOV =
+    Math.PI / 3;
+
+const RAY_COUNT = 500;
+
+const MAX_DEPTH = 30;
+
+// ============================================================
+// 3D TOUCH LOOK
+// ============================================================
+
+let lookPointerId = null;
+
+let lookLastX = 0;
+let lookLastY = 0;
+
+const LOOK_SENSITIVITY_X =
+    0.006;
+
+const LOOK_SENSITIVITY_Y =
+    0.0045;
+
+const MAX_PITCH =
+    Math.PI / 2 - 0.08;
+
+// ============================================================
+// 3D TOUCH LOOK START
+// ============================================================
+
+document.addEventListener(
+    "pointerdown",
+    function (e) {
+
+        if (!supportsTouch) {
+            return;
+        }
+
+        if (!data || !is3D) {
+            return;
+        }
+
+        if (
+            e.pointerType !== "touch"
+        ) {
+            return;
+        }
+
+        // Thumbstick owns this touch.
+        if (
+            thumbstick &&
+            (
+                e.target === thumbstick ||
+                thumbstick.contains(
+                    e.target
+                )
+            )
+        ) {
+            return;
+        }
+
+        if (
+            lookPointerId !== null
+        ) {
+            return;
+        }
+
+        e.preventDefault();
+
+        lookPointerId =
+            e.pointerId;
+
+        lookLastX =
+            e.clientX;
+
+        lookLastY =
+            e.clientY;
+    },
+    {
+        passive: false
+    }
+);
+
+// ============================================================
+// 3D TOUCH LOOK MOVE
+// ============================================================
+
+document.addEventListener(
+    "pointermove",
+    function (e) {
+
+        if (
+            e.pointerId !==
+            lookPointerId
+        ) {
+            return;
+        }
+
+        if (!data || !is3D) {
+            return;
+        }
+
+        e.preventDefault();
+
+        const dx =
+            e.clientX -
+            lookLastX;
+
+        const dy =
+            e.clientY -
+            lookLastY;
+
+        lookLastX =
+            e.clientX;
+
+        lookLastY =
+            e.clientY;
+
+        cameraYaw +=
+            dx *
+            LOOK_SENSITIVITY_X;
+
+        cameraPitch +=
+            dy *
+            LOOK_SENSITIVITY_Y;
+
+        cameraPitch =
+            Math.max(
+                -MAX_PITCH,
+                Math.min(
+                    MAX_PITCH,
+                    cameraPitch
+                )
+            );
+    },
+    {
+        passive: false
+    }
+);
+
+// ============================================================
+// 3D TOUCH LOOK END
+// ============================================================
+
+function stopLook(e) {
+
+    if (
+        e.pointerId ===
+        lookPointerId
+    ) {
+        lookPointerId = null;
     }
 }
 
-/* ---------------- CREATE IT ---------------- */
+document.addEventListener(
+    "pointerup",
+    stopLook
+);
 
-createThumbstick();
+document.addEventListener(
+    "pointercancel",
+    stopLook
+);
 
-/* ============================================================
-   SAVE
-   ============================================================ */
+// ============================================================
+// TOGGLE 3D
+// ============================================================
 
-function unlocked() {
-    return parseInt(
-        localStorage.getItem("unlocked") || "1"
+toggle3D.hidden = true;
+
+toggle3D.addEventListener(
+    "click",
+    function () {
+
+        if (!data) {
+            return;
+        }
+
+        is3D = !is3D;
+
+        cameraPitch = 0;
+
+        clickTarget = null;
+
+        resetJoystick();
+
+        if (is3D) {
+            toggle3D.textContent =
+                "2D";
+        } else {
+            toggle3D.textContent =
+                "3D";
+        }
+
+        updateControlVisibility();
+        updateThumbstickVisibility();
+    }
+);
+
+// ============================================================
+// LOCAL STORAGE
+// ============================================================
+
+function getUnlocked() {
+
+    let unlocked =
+        Number(
+            localStorage.getItem(
+                "mazeUnlocked"
+            )
+        );
+
+    if (
+        !Number.isFinite(
+            unlocked
+        ) ||
+        unlocked < 1
+    ) {
+        unlocked = 1;
+    }
+
+    return Math.min(
+        unlocked,
+        max
     );
 }
 
-function setUnlocked(v) {
-    localStorage.setItem(
-        "unlocked",
-        v
-    );
+function setUnlocked(level) {
+
+    const current =
+        getUnlocked();
+
+    if (
+        level >
+        current
+    ) {
+        localStorage.setItem(
+            "mazeUnlocked",
+            String(
+                Math.min(
+                    level,
+                    max
+                )
+            )
+        );
+    }
 }
 
-/* ============================================================
-   URL SYSTEM
-   ============================================================ */
+// ============================================================
+// URL LEVEL
+// ============================================================
 
-function getRequestedLevel() {
+function getLevelFromURL() {
 
     const params =
         new URLSearchParams(
             window.location.search
         );
 
-    if (!params.has("Level")) {
-        return null;
-    }
-
-    const val =
-        params.get("Level");
-
-    if (
-        val === null ||
-        val === ""
-    ) {
-        return "menu";
-    }
-
-    const num =
-        parseInt(val);
-
-    if (isNaN(num)) {
-        return "menu";
-    }
-
-    return num;
-}
-
-function getLatestUnlocked() {
-    return unlocked();
-}
-
-function getSafeLevel(requested) {
-
-    const latest =
-        unlocked();
-
-    if (requested === null) {
-        return null;
-    }
-
-    if (requested === "menu") {
-        return null;
-    }
-
-    return Math.min(
-        Math.max(1, requested),
-        latest
-    );
-}
-
-function syncUrl(level) {
-
-    history.replaceState(
-        null,
-        "",
-        `?Level=${level}`
-    );
-}
-
-function applyUrlToMenu() {
-
-    const req =
-        getRequestedLevel();
-
-    const latest =
-        unlocked();
-
-    let target;
-
-    if (
-        req === null ||
-        req === "latest"
-    ) {
-
-        target = latest;
-
-    } else {
-
-        target =
-            Math.min(
-                Math.max(1, req),
-                latest
-            );
-    }
-
-    console.log(
-        "Suggested level:",
-        target
-    );
-}
-
-/* ============================================================
-   MENU
-   ============================================================ */
-
-function buildMenu() {
-
-    const menu =
-        document.getElementById(
-            "menu"
+    const value =
+        Number(
+            params.get("Level")
         );
 
-    /*
-     * Make absolutely sure the 3D button
-     * is hidden while the menu is visible.
-     */
-    toggle3D.style.display =
-        "none";
-
-    /*
-     * Hide the thumbstick too.
-     */
-    if (joystick) {
-        joystick.style.display =
-            "none";
+    if (
+        Number.isInteger(value) &&
+        value >= 1 &&
+        value <= max
+    ) {
+        return value;
     }
+
+    return null;
+}
+
+// ============================================================
+// MENU
+// ============================================================
+
+function buildMenu() {
 
     menu.innerHTML = "";
 
     menu.style.display =
         "grid";
 
-    applyUrlToMenu();
+    canvas.style.display =
+        "none";
 
-    const u =
-        unlocked();
+    win.style.display =
+        "none";
+
+    toggle3D.hidden = true;
+
+    if (thumbstick) {
+        thumbstick.hidden = true;
+    }
+
+    resetJoystick();
+
+    lookPointerId = null;
+
+    is3D = false;
+
+    toggle3D.textContent =
+        "3D";
+
+    const unlocked =
+        getUnlocked();
 
     for (
-        let i = 1;
-        i <= max;
-        i++
+        let level = 1;
+        level <= max;
+        level++
     ) {
 
-        const b =
+        const button =
             document.createElement(
                 "button"
             );
 
-        b.className =
+        button.className =
             "level";
 
-        b.textContent =
-            "Level " + i;
+        button.textContent =
+            level <= unlocked
+                ? `Level ${level}`
+                : `Level ${level} 🔒`;
 
-        if (i > u) {
+        if (
+            level >
+            unlocked
+        ) {
 
-            b.classList.add(
+            button.classList.add(
                 "locked"
             );
 
-            b.disabled = true;
-
-            b.textContent =
-                "🔒 Level " + i;
+            button.disabled = true;
 
         } else {
 
-            b.onclick =
-                () => loadLevel(i);
+            button.addEventListener(
+                "click",
+                function () {
+                    loadLevel(level);
+                }
+            );
         }
 
-        menu.appendChild(b);
+        menu.appendChild(
+            button
+        );
     }
 }
 
-/* ============================================================
-   LOAD
-   ============================================================ */
+// ============================================================
+// CONTROL VISIBILITY
+// ============================================================
 
-async function loadLevel(id) {
+function updateControlVisibility() {
+
+    const inLevel =
+        data !== null &&
+        canvas.style.display !==
+            "none" &&
+        win.style.display !==
+            "flex";
+
+    toggle3D.hidden =
+        !inLevel;
+
+    updateThumbstickVisibility();
+}
+
+// ============================================================
+// LOAD LEVEL
+// ============================================================
+
+async function loadLevel(level) {
 
     const safe =
-        getSafeLevel(id);
-
-    if (safe === null) {
-        return;
-    }
+        Math.max(
+            1,
+            Math.min(
+                max,
+                Number(level)
+            )
+        );
 
     currentLevel =
         safe;
 
-    syncUrl(safe);
+    try {
 
-    const res =
-        await fetch(
-            `levels/${safe}.json`
+        const response =
+            await fetch(
+                `levels/${safe}.json`,
+                {
+                    cache:
+                        "no-store"
+                }
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                `HTTP ${response.status}`
+            );
+        }
+
+        const raw =
+            await response.json();
+
+        data =
+            parseGrid(raw);
+
+        is3D = false;
+
+        cameraPitch = 0;
+
+        clickTarget = null;
+
+        resetJoystick();
+
+        lookPointerId = null;
+
+        // Reset to automatic touch controls
+        // when entering a new level.
+        keyboardMode = false;
+
+        menu.style.display =
+            "none";
+
+        canvas.style.display =
+            "block";
+
+        win.style.display =
+            "none";
+
+        toggle3D.hidden =
+            false;
+
+        toggle3D.textContent =
+            "3D";
+
+        updateControlVisibility();
+        updateThumbstickVisibility();
+
+    } catch (error) {
+
+        console.error(
+            "Failed to load level:",
+            error
         );
 
-    data =
-        await res.json();
+        data = null;
 
-    parseGrid();
-
-    hasWon = false;
-
-    cameraAngle = 0;
-
-    /*
-     * Always start a newly loaded level
-     * in 2D mode.
-     */
-    is3D = false;
-
-    toggle3D.textContent =
-        "Toggle 3D";
-
-    /*
-     * Hide menu.
-     */
-    document.getElementById(
-        "menu"
-    ).style.display =
-        "none";
-
-    /*
-     * Show canvas.
-     */
-    canvas.style.display =
-        "block";
-
-    /*
-     * NOW show the 3D toggle.
-     */
-    toggle3D.style.display =
-        "block";
-
-    /*
-     * Thumbstick remains hidden
-     * until 3D is activated.
-     */
-    updateThumbstickVisibility();
-
-    document.getElementById(
-        "win"
-    ).style.display =
-        "none";
-
-    draw();
+        buildMenu();
+    }
 }
 
-/* ============================================================
-   GRID
-   ============================================================ */
+// ============================================================
+// PARSE GRID
+// ============================================================
 
-function parseGrid() {
+function parseGrid(raw) {
 
-    const grid =
-        data.grid;
+    let grid;
 
-    const rows =
-        grid.length;
+    if (Array.isArray(raw)) {
 
-    const cols =
-        Math.max(
-            ...grid.map(
-                r => r.length
-            )
+        grid = raw;
+
+    } else if (
+        raw &&
+        Array.isArray(raw.grid)
+    ) {
+
+        grid = raw.grid;
+
+    } else {
+
+        throw new Error(
+            "Invalid level format."
+        );
+    }
+
+    grid =
+        grid.map(
+            row => {
+
+                if (
+                    Array.isArray(row)
+                ) {
+                    return row.map(
+                        String
+                    );
+                }
+
+                return String(row)
+                    .split("");
+            }
         );
 
-    data.rows =
-        rows;
-
-    data.cols =
-        cols;
-
-    const tileSize =
-        Math.min(
-            canvas.width / cols,
-            canvas.height / rows
-        );
+    let start = null;
+    let end = null;
 
     for (
         let y = 0;
-        y < rows;
+        y < grid.length;
         y++
     ) {
 
@@ -765,689 +924,715 @@ function parseGrid() {
             x++
         ) {
 
-            const c =
+            const cell =
                 grid[y][x];
 
-            if (c === "S") {
-
-                player = {
-                    x,
-                    y
-                };
-
-                playerPx = {
-                    x:
-                        x * tileSize,
-
-                    y:
-                        y * tileSize
-                };
-            }
-
-            if (c === "E") {
-
-                exit = {
+            if (
+                cell === "S"
+            ) {
+                start = {
                     x,
                     y
                 };
             }
-        }
-    }
-}
-
-/* ============================================================
-   INPUT
-   ============================================================ */
-
-window.addEventListener(
-    "keydown",
-    e => {
-
-        keys[e.key] = true;
-    }
-);
-
-window.addEventListener(
-    "keyup",
-    e => {
-
-        keys[e.key] = false;
-    }
-);
-
-/* ============================================================
-   CLICK CONTROLS
-   ============================================================ */
-
-let clickTarget = null;
-
-document.addEventListener(
-    "mousedown",
-    e => {
-
-        if (
-            e.target === toggle3D ||
-            e.target === joystick ||
-            e.target === joystickBase ||
-            e.target === joystickKnob
-        ) {
-            return;
-        }
-
-        /*
-         * On touch phones/tablets in 3D,
-         * the thumbstick handles movement.
-         */
-        if (
-            supportsThumbstick &&
-            is3D
-        ) {
-            return;
-        }
-
-        clickTarget = {
-            x: e.clientX,
-            y: e.clientY
-        };
-    }
-);
-
-document.addEventListener(
-    "mouseup",
-    () => {
-
-        clickTarget = null;
-    }
-);
-
-document.addEventListener(
-    "mousemove",
-    e => {
-
-        if (e.buttons !== 1) {
-            return;
-        }
-
-        if (
-            supportsThumbstick &&
-            is3D
-        ) {
-            return;
-        }
-
-        clickTarget = {
-            x: e.clientX,
-            y: e.clientY
-        };
-    }
-);
-
-/* ============================================================
-   TOUCH CONTROLS
-   ============================================================ */
-
-document.addEventListener(
-    "touchstart",
-    e => {
-
-        /*
-         * The thumbstick handles movement
-         * on supported mobile devices in 3D.
-         */
-        if (
-            supportsThumbstick &&
-            is3D
-        ) {
-            return;
-        }
-
-        if (
-            e.target === toggle3D
-        ) {
-            return;
-        }
-
-        const touch =
-            e.touches[0];
-
-        if (!touch) return;
-
-        clickTarget = {
-            x: touch.clientX,
-            y: touch.clientY
-        };
-    },
-    {
-        passive: false
-    }
-);
-
-document.addEventListener(
-    "touchmove",
-    e => {
-
-        if (
-            supportsThumbstick &&
-            is3D
-        ) {
-            return;
-        }
-
-        const touch =
-            e.touches[0];
-
-        if (!touch) return;
-
-        clickTarget = {
-            x: touch.clientX,
-            y: touch.clientY
-        };
-    },
-    {
-        passive: false
-    }
-);
-
-document.addEventListener(
-    "touchend",
-    () => {
-
-        if (
-            supportsThumbstick &&
-            is3D
-        ) {
-            return;
-        }
-
-        clickTarget = null;
-    }
-);
-
-/* ============================================================
-   COLLISION
-   ============================================================ */
-
-function collides(px, py) {
-
-    const cols =
-        data.cols;
-
-    const rows =
-        data.rows;
-
-    const tileSize =
-        Math.min(
-            canvas.width / cols,
-            canvas.height / rows
-        );
-
-    const size =
-        tileSize *
-        HITBOX_SCALE;
-
-    const left =
-        px +
-        (tileSize - size) / 2;
-
-    const top =
-        py +
-        (tileSize - size) / 2;
-
-    const right =
-        left + size;
-
-    const bottom =
-        top + size;
-
-    const startX =
-        Math.floor(
-            left / tileSize
-        );
-
-    const endX =
-        Math.floor(
-            right / tileSize
-        );
-
-    const startY =
-        Math.floor(
-            top / tileSize
-        );
-
-    const endY =
-        Math.floor(
-            bottom / tileSize
-        );
-
-    for (
-        let y = startY;
-        y <= endY;
-        y++
-    ) {
-
-        for (
-            let x = startX;
-            x <= endX;
-            x++
-        ) {
 
             if (
-                !data.grid[y] ||
-                data.grid[y][x] === "1"
+                cell === "E"
             ) {
-
-                return true;
+                end = {
+                    x,
+                    y
+                };
             }
         }
     }
 
-    return false;
+    if (!start) {
+        throw new Error(
+            "Level has no start."
+        );
+    }
+
+    if (!end) {
+        throw new Error(
+            "Level has no exit."
+        );
+    }
+
+    const rows =
+        grid.length;
+
+    const cols =
+        Math.max(
+            ...grid.map(
+                row =>
+                    row.length
+            )
+        );
+
+    tileSize =
+        Math.min(
+            canvas.width /
+                cols,
+
+            canvas.height /
+                rows
+        );
+
+    player = {
+        x: start.x,
+        y: start.y
+    };
+
+    playerPx = {
+        x:
+            start.x *
+                tileSize +
+            tileSize / 2,
+
+        y:
+            start.y *
+                tileSize +
+            tileSize / 2
+    };
+
+    exit = {
+        x: end.x,
+        y: end.y
+    };
+
+    return {
+        grid,
+        rows,
+        cols,
+        start,
+        end
+    };
 }
 
-/* ============================================================
-   MOVEMENT
-   ============================================================ */
+// ============================================================
+// WALL TEST
+// ============================================================
+
+function isWall(x, y) {
+
+    if (!data) {
+        return true;
+    }
+
+    const ix =
+        Math.floor(x);
+
+    const iy =
+        Math.floor(y);
+
+    if (
+        iy < 0 ||
+        iy >= data.rows ||
+        ix < 0 ||
+        ix >= data.cols
+    ) {
+        return true;
+    }
+
+    const row =
+        data.grid[iy];
+
+    if (
+        !row ||
+        ix >= row.length
+    ) {
+        return true;
+    }
+
+    const cell =
+        row[ix];
+
+    return (
+        cell === "#" ||
+        cell === "1" ||
+        cell === "W"
+    );
+}
+
+// ============================================================
+// 2D COLLISION
+// ============================================================
+
+function canMoveTo(x, y) {
+
+    const radius =
+        tileSize *
+        0.5 *
+        HITBOX_SCALE;
+
+    const points = [
+        [
+            x - radius,
+            y - radius
+        ],
+        [
+            x + radius,
+            y - radius
+        ],
+        [
+            x - radius,
+            y + radius
+        ],
+        [
+            x + radius,
+            y + radius
+        ],
+        [
+            x,
+            y - radius
+        ],
+        [
+            x,
+            y + radius
+        ],
+        [
+            x - radius,
+            y
+        ],
+        [
+            x + radius,
+            y
+        ]
+    ];
+
+    for (
+        const [px, py]
+        of points
+    ) {
+
+        if (
+            isWall(
+                px / tileSize,
+                py / tileSize
+            )
+        ) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// ============================================================
+// MOVEMENT
+// ============================================================
 
 function tryMove(dx, dy) {
 
-    const tileSize =
-        Math.min(
-            canvas.width /
-                data.cols,
-
-            canvas.height /
-                data.rows
-        );
-
-    const steps =
-        Math.ceil(
-            Math.max(
-                Math.abs(dx),
-                Math.abs(dy)
-            )
-        );
-
-    if (steps === 0) {
+    if (!data) {
         return;
     }
 
-    const stepX =
-        dx / steps;
+    const nextX =
+        playerPx.x +
+        dx;
 
-    const stepY =
-        dy / steps;
+    const nextY =
+        playerPx.y +
+        dy;
 
-    for (
-        let i = 0;
-        i < steps;
-        i++
+    if (
+        canMoveTo(
+            nextX,
+            playerPx.y
+        )
     ) {
-
-        let nx =
-            playerPx.x +
-            stepX;
-
-        let ny =
-            playerPx.y +
-            stepY;
-
-        if (
-            !collides(
-                nx,
-                playerPx.y
-            )
-        ) {
-
-            playerPx.x =
-                nx;
-        }
-
-        if (
-            !collides(
-                playerPx.x,
-                ny
-            )
-        ) {
-
-            playerPx.y =
-                ny;
-        }
+        playerPx.x =
+            nextX;
     }
+
+    if (
+        canMoveTo(
+            playerPx.x,
+            nextY
+        )
+    ) {
+        playerPx.y =
+            nextY;
+    }
+
+    player.x =
+        playerPx.x /
+        tileSize;
+
+    player.y =
+        playerPx.y /
+        tileSize;
 }
 
-function move() {
+// ============================================================
+// 2D KEYBOARD / CLICK MOVEMENT
+// ============================================================
 
-    if (!data) {
+function update2DMovement() {
+
+    if (
+        !data ||
+        is3D
+    ) {
         return;
     }
 
     let dx = 0;
     let dy = 0;
 
-    /* ---------------- KEYBOARD ---------------- */
-
-    if (keys["ArrowUp"]) {
+    if (
+        keys.ArrowUp ||
+        keys.w ||
+        keys.W
+    ) {
         dy -= SPEED;
     }
 
-    if (keys["ArrowDown"]) {
+    if (
+        keys.ArrowDown ||
+        keys.s ||
+        keys.S
+    ) {
         dy += SPEED;
     }
 
-    if (keys["ArrowLeft"]) {
+    if (
+        keys.ArrowLeft ||
+        keys.a ||
+        keys.A
+    ) {
         dx -= SPEED;
     }
 
-    if (keys["ArrowRight"]) {
+    if (
+        keys.ArrowRight ||
+        keys.d ||
+        keys.D
+    ) {
         dx += SPEED;
     }
 
-    /* ---------------- THUMBSTICK ---------------- */
-
-    if (
-        supportsThumbstick &&
-        is3D &&
-        joystickActive
-    ) {
-
-        dx =
-            joystickX *
-            SPEED;
-
-        dy =
-            joystickY *
-            SPEED;
-    }
-
-    /* ---------------- CLICK / TOUCH ---------------- */
-
     if (
         clickTarget &&
-        !(
-            supportsThumbstick &&
-            is3D
-        )
+        Math.hypot(
+            clickTarget.x -
+                playerPx.x,
+
+            clickTarget.y -
+                playerPx.y
+        ) > 1
     ) {
 
-        const centerX =
-            window.innerWidth / 2;
+        const tx =
+            clickTarget.x -
+            playerPx.x;
 
-        const centerY =
-            window.innerHeight / 2;
+        const ty =
+            clickTarget.y -
+            playerPx.y;
 
-        const distX =
-            Math.abs(
-                clickTarget.x -
-                centerX
-            );
-
-        const distY =
-            Math.abs(
-                clickTarget.y -
-                centerY
+        const distance =
+            Math.hypot(
+                tx,
+                ty
             );
 
         if (
-            distX >
-            distY
+            distance > 0
         ) {
 
-            if (
-                clickTarget.x >
-                centerX
-            ) {
+            dx +=
+                (
+                    tx /
+                    distance
+                ) *
+                SPEED;
 
-                dx = SPEED;
-
-            } else {
-
-                dx = -SPEED;
-            }
-
-        } else {
-
-            if (
-                clickTarget.y >
-                centerY
-            ) {
-
-                dy = SPEED;
-
-            } else {
-
-                dy = -SPEED;
-            }
+            dy +=
+                (
+                    ty /
+                    distance
+                ) *
+                SPEED;
         }
+    }
+
+    const magnitude =
+        Math.hypot(
+            dx,
+            dy
+        );
+
+    if (
+        magnitude > SPEED
+    ) {
+
+        dx =
+            dx /
+            magnitude *
+            SPEED;
+
+        dy =
+            dy /
+            magnitude *
+            SPEED;
     }
 
     tryMove(
         dx,
         dy
     );
-
-    const tileSize =
-        Math.min(
-            canvas.width /
-                data.cols,
-
-            canvas.height /
-                data.rows
-        );
-
-    player.x =
-        Math.floor(
-            playerPx.x /
-            tileSize
-        );
-
-    player.y =
-        Math.floor(
-            playerPx.y /
-            tileSize
-        );
-
-    checkWin();
 }
 
-/* ============================================================
-   WIN
-   ============================================================ */
+// ============================================================
+// 3D MOVEMENT
+// ============================================================
 
-let hasWon = false;
+function update3DMovement() {
 
-function checkWin() {
-
-    if (hasWon) {
+    if (
+        !data ||
+        !is3D
+    ) {
         return;
     }
 
-    const tileSize =
-        Math.min(
-            canvas.width /
-                data.cols,
+    let moveForward = 0;
+    let moveStrafe = 0;
 
-            canvas.height /
-                data.rows
-        );
+    // --------------------------------------------------------
+    // TOUCH THUMBSTICK
+    // --------------------------------------------------------
 
-    const size =
-        tileSize *
-        HITBOX_SCALE;
+    if (
+        supportsTouch &&
+        !keyboardMode &&
+        joystickActive
+    ) {
 
-    const left =
-        playerPx.x +
-        (tileSize - size) / 2;
+        moveStrafe =
+            joystickX;
 
-    const top =
-        playerPx.y +
-        (tileSize - size) / 2;
+        moveForward =
+            -joystickY;
+    }
 
-    const right =
-        left + size;
+    // --------------------------------------------------------
+    // KEYBOARD
+    // --------------------------------------------------------
 
-    const bottom =
-        top + size;
-
-    const ex =
-        exit.x *
-        tileSize;
-
-    const ey =
-        exit.y *
-        tileSize;
-
-    const touched =
-        left <
-            ex + tileSize &&
-
-        right >
-            ex &&
-
-        top <
-            ey + tileSize &&
-
-        bottom >
-            ey;
-
-    if (touched) {
-
-        hasWon = true;
-
-        document.getElementById(
-            "win"
-        ).style.display =
-            "flex";
-
-        const u =
-            unlocked();
+    if (
+        keyboardMode ||
+        !supportsTouch
+    ) {
 
         if (
-            currentLevel >= u
+            keys.ArrowUp ||
+            keys.w ||
+            keys.W
         ) {
-
-            setUnlocked(
-                u + 1
-            );
+            moveForward += 1;
         }
 
-        /*
-         * Hide mobile controls after winning.
-         */
-        updateThumbstickVisibility();
-    }
-}
+        if (
+            keys.ArrowDown ||
+            keys.s ||
+            keys.S
+        ) {
+            moveForward -= 1;
+        }
 
-/* ============================================================
-   RETURN TO MENU
-   ============================================================ */
+        if (
+            keys.ArrowLeft ||
+            keys.a ||
+            keys.A
+        ) {
+            moveStrafe -= 1;
+        }
 
-function returnToMenu() {
-
-    hasWon = false;
-
-    data = null;
-
-    keys = {};
-
-    player = {
-        x: 0,
-        y: 0
-    };
-
-    playerPx = {
-        x: 0,
-        y: 0
-    };
-
-    cameraAngle = 0;
-
-    is3D = false;
-
-    toggle3D.textContent =
-        "Toggle 3D";
-
-    toggle3D.style.display =
-        "none";
-
-    if (joystick) {
-        joystick.style.display =
-            "none";
+        if (
+            keys.ArrowRight ||
+            keys.d ||
+            keys.D
+        ) {
+            moveStrafe += 1;
+        }
     }
 
-    history.replaceState(
-        null,
-        "",
-        window.location.pathname
+    const magnitude =
+        Math.hypot(
+            moveForward,
+            moveStrafe
+        );
+
+    if (
+        magnitude <
+        0.001
+    ) {
+        return;
+    }
+
+    if (
+        magnitude > 1
+    ) {
+
+        moveForward /=
+            magnitude;
+
+        moveStrafe /=
+            magnitude;
+    }
+
+    // --------------------------------------------------------
+    // CAMERA-RELATIVE MOVEMENT
+    // --------------------------------------------------------
+
+    const forwardX =
+        Math.cos(
+            cameraYaw
+        );
+
+    const forwardY =
+        Math.sin(
+            cameraYaw
+        );
+
+    const rightX =
+        -Math.sin(
+            cameraYaw
+        );
+
+    const rightY =
+        Math.cos(
+            cameraYaw
+        );
+
+    const worldX =
+        (
+            forwardX *
+            moveForward
+        ) +
+        (
+            rightX *
+            moveStrafe
+        );
+
+    const worldY =
+        (
+            forwardY *
+            moveForward
+        ) +
+        (
+            rightY *
+            moveStrafe
+        );
+
+    const movementSpeed =
+        SPEED;
+
+    tryMove(
+        worldX *
+            movementSpeed,
+
+        worldY *
+            movementSpeed
     );
-
-    canvas.style.display =
-        "none";
-
-    document.getElementById(
-        "win"
-    ).style.display =
-        "none";
-
-    document.getElementById(
-        "menu"
-    ).style.display =
-        "grid";
-
-    buildMenu();
 }
 
-/* ============================================================
-   MENU RETURN
-   ============================================================ */
+// ============================================================
+// INPUT: CLICK / TOUCH FOR 2D ONLY
+// ============================================================
+
+function handle2DPointer(e) {
+
+    if (
+        !data ||
+        is3D
+    ) {
+        return;
+    }
+
+    if (
+        e.pointerType ===
+            "touch" &&
+        supportsTouch
+    ) {
+        return;
+    }
+
+    const rect =
+        canvas.getBoundingClientRect();
+
+    const scaleX =
+        canvas.width /
+        rect.width;
+
+    const scaleY =
+        canvas.height /
+        rect.height;
+
+    const x =
+        (
+            e.clientX -
+            rect.left
+        ) *
+        scaleX;
+
+    const y =
+        (
+            e.clientY -
+            rect.top
+        ) *
+        scaleY;
+
+    clickTarget = {
+        x,
+        y
+    };
+}
+
+canvas.addEventListener(
+    "pointerdown",
+    function (e) {
+
+        if (is3D) {
+            return;
+        }
+
+        handle2DPointer(e);
+    },
+    {
+        passive: true
+    }
+);
+
+canvas.addEventListener(
+    "pointermove",
+    function (e) {
+
+        if (is3D) {
+            return;
+        }
+
+        if (
+            e.buttons ||
+            e.pointerType ===
+                "touch"
+        ) {
+            handle2DPointer(e);
+        }
+    },
+    {
+        passive: true
+    }
+);
+
+// ============================================================
+// WIN CHECK
+// ============================================================
+
+let levelWon = false;
+
+function checkWin() {
+
+    if (
+        !data ||
+        levelWon
+    ) {
+        return;
+    }
+
+    const distance =
+        Math.hypot(
+
+            playerPx.x -
+                (
+                    exit.x *
+                        tileSize +
+                    tileSize / 2
+                ),
+
+            playerPx.y -
+                (
+                    exit.y *
+                        tileSize +
+                    tileSize / 2
+                )
+        );
+
+    if (
+        distance <
+        tileSize * 0.45
+    ) {
+
+        levelWon = true;
+
+        clickTarget = null;
+
+        resetJoystick();
+
+        lookPointerId = null;
+
+        setUnlocked(
+            currentLevel + 1
+        );
+
+        toggle3D.hidden =
+            true;
+
+        if (thumbstick) {
+            thumbstick.hidden =
+                true;
+        }
+
+        win.style.display =
+            "flex";
+    }
+}
+
+// ============================================================
+// RETURN TO MENU
+// ============================================================
 
 function backToMenu() {
 
     data = null;
 
-    hasWon = false;
-
-    keys = {};
+    levelWon = false;
 
     is3D = false;
 
+    cameraYaw = 0;
+    cameraPitch = 0;
+
+    clickTarget = null;
+
+    resetJoystick();
+
+    lookPointerId = null;
+
+    keyboardMode = false;
+
     toggle3D.textContent =
-        "Toggle 3D";
-
-    toggle3D.style.display =
-        "none";
-
-    if (joystick) {
-        joystick.style.display =
-            "none";
-    }
-
-    canvas.style.display =
-        "none";
-
-    document.getElementById(
-        "win"
-    ).style.display =
-        "none";
-
-    document.getElementById(
-        "menu"
-    ).style.display =
-        "grid";
-
-    history.replaceState(
-        null,
-        "",
-        window.location.pathname
-    );
+        "3D";
 
     buildMenu();
 }
 
-/* ============================================================
-   2D DRAW
-   ============================================================ */
+window.backToMenu =
+    backToMenu;
+
+// ============================================================
+// 2D DRAW
+// ============================================================
 
 function draw2D() {
+
+    if (!data) {
+        return;
+    }
 
     ctx.clearRect(
         0,
@@ -1456,77 +1641,55 @@ function draw2D() {
         canvas.height
     );
 
-    const cols =
-        data.cols;
-
-    const rows =
-        data.rows;
-
-    const tileSize =
-        Math.min(
-            canvas.width / cols,
-            canvas.height / rows
-        );
-
-    const offsetX =
-        (
-            canvas.width -
-            cols * tileSize
-        ) / 2;
-
-    const offsetY =
-        (
-            canvas.height -
-            rows * tileSize
-        ) / 2;
+    const grid =
+        data.grid;
 
     for (
         let y = 0;
-        y < rows;
+        y < data.rows;
         y++
     ) {
 
         for (
             let x = 0;
-            x < cols;
+            x < data.cols;
             x++
         ) {
 
-            const c =
-                data.grid[y][x] ||
-                "1";
+            const cell =
+                grid[y][x];
 
-            if (c === "1") {
+            if (
+                cell === "#" ||
+                cell === "1" ||
+                cell === "W"
+            ) {
 
                 ctx.fillStyle =
-                    "#2b3f66";
+                    "#1c2a44";
 
                 ctx.fillRect(
-                    offsetX +
-                        x * tileSize,
+                    x *
+                        tileSize,
 
-                    offsetY +
-                        y * tileSize,
+                    y *
+                        tileSize,
 
                     tileSize,
                     tileSize
                 );
-            }
 
-            if (
-                x === exit.x &&
-                y === exit.y
-            ) {
+            } else {
 
                 ctx.fillStyle =
-                    "rgba(0,255,150,0.25)";
+                    "#070a12";
 
                 ctx.fillRect(
-                    offsetX +
-                        x * tileSize,
+                    x *
+                        tileSize,
 
-                    offsetY +
-                        y * tileSize,
+                    y *
+                        tileSize,
 
                     tileSize,
                     tileSize
@@ -1535,29 +1698,47 @@ function draw2D() {
         }
     }
 
+    ctx.fillStyle =
+        "#00e5ff";
+
+    ctx.fillRect(
+
+        exit.x *
+            tileSize +
+            tileSize *
+            0.2,
+
+        exit.y *
+            tileSize +
+            tileSize *
+            0.2,
+
+        tileSize *
+            0.6,
+
+        tileSize *
+            0.6
+    );
+
     const size =
         tileSize *
         HITBOX_SCALE;
 
-    const px =
-        offsetX +
-        playerPx.x +
-        (tileSize - size) / 2;
-
-    const py =
-        offsetY +
-        playerPx.y +
-        (tileSize - size) / 2;
-
     if (
-        sprite.complete &&
-        sprite.naturalWidth
+        playerImage.complete &&
+        playerImage.naturalWidth > 0
     ) {
 
         ctx.drawImage(
-            sprite,
-            px,
-            py,
+
+            playerImage,
+
+            playerPx.x -
+                size / 2,
+
+            playerPx.y -
+                size / 2,
+
             size,
             size
         );
@@ -1565,22 +1746,86 @@ function draw2D() {
     } else {
 
         ctx.fillStyle =
-            "#00e5ff";
+            "#ffffff";
 
-        ctx.fillRect(
-            px,
-            py,
-            size,
-            size
+        ctx.beginPath();
+
+        ctx.arc(
+
+            playerPx.x,
+            playerPx.y,
+
+            size / 2,
+
+            0,
+            Math.PI * 2
         );
+
+        ctx.fill();
     }
 }
 
-/* ============================================================
-   3D RAYCASTER
-   ============================================================ */
+// ============================================================
+// 3D RAYCASTING
+// ============================================================
+
+function castRay(
+    originX,
+    originY,
+    angle
+) {
+
+    const rayDirX =
+        Math.cos(angle);
+
+    const rayDirY =
+        Math.sin(angle);
+
+    const step =
+        0.03;
+
+    let distance = 0;
+
+    while (
+        distance <
+        MAX_DEPTH
+    ) {
+
+        const x =
+            originX +
+            rayDirX *
+            distance;
+
+        const y =
+            originY +
+            rayDirY *
+            distance;
+
+        if (
+            isWall(
+                x,
+                y
+            )
+        ) {
+            return distance;
+        }
+
+        distance +=
+            step;
+    }
+
+    return MAX_DEPTH;
+}
+
+// ============================================================
+// 3D DRAW
+// ============================================================
 
 function draw3D() {
+
+    if (!data) {
+        return;
+    }
 
     ctx.clearRect(
         0,
@@ -1589,382 +1834,131 @@ function draw3D() {
         canvas.height
     );
 
-    const width =
-        canvas.width;
-
-    const height =
-        canvas.height;
-
-    /* ---------------- SKY ---------------- */
-
-    const sky =
-        ctx.createLinearGradient(
-            0,
-            0,
-            0,
-            height / 2
-        );
-
-    sky.addColorStop(
-        0,
-        "#070a12"
-    );
-
-    sky.addColorStop(
-        1,
-        "#111a30"
-    );
+    const horizon =
+        canvas.height / 2 +
+        cameraPitch *
+            canvas.height *
+            0.65;
 
     ctx.fillStyle =
-        sky;
+        "#07101c";
 
     ctx.fillRect(
         0,
         0,
-        width,
-        height / 2
-    );
-
-    /* ---------------- FLOOR ---------------- */
-
-    const floor =
-        ctx.createLinearGradient(
+        canvas.width,
+        Math.max(
             0,
-            height / 2,
-            0,
-            height
-        );
-
-    floor.addColorStop(
-        0,
-        "#111827"
-    );
-
-    floor.addColorStop(
-        1,
-        "#05070d"
+            horizon
+        )
     );
 
     ctx.fillStyle =
-        floor;
+        "#05070d";
 
     ctx.fillRect(
         0,
-        height / 2,
-        width,
-        height / 2
+        Math.max(
+            0,
+            horizon
+        ),
+        canvas.width,
+        canvas.height
     );
 
-    const tileSize =
-        Math.min(
-            canvas.width /
-                data.cols,
+    const playerX =
+        playerPx.x /
+        tileSize;
 
-            canvas.height /
-                data.rows
-        );
-
-    /* ---------------- PLAYER WORLD POSITION ---------------- */
-
-    const px =
-        (
-            playerPx.x +
-            tileSize / 2
-        ) / tileSize;
-
-    const py =
-        (
-            playerPx.y +
-            tileSize / 2
-        ) / tileSize;
-
-    const posX =
-        px;
-
-    const posY =
-        py;
-
-    /* ---------------- RAYS ---------------- */
+    const playerY =
+        playerPx.y /
+        tileSize;
 
     for (
-        let ray = 0;
-        ray < RAY_COUNT;
-        ray++
+        let i = 0;
+        i < RAY_COUNT;
+        i++
     ) {
 
-        const cameraX =
+        const cameraOffset =
             (
-                ray /
-                RAY_COUNT
-            ) * 2 - 1;
+                i /
+                (RAY_COUNT - 1)
+            ) -
+            0.5;
 
         const rayAngle =
-            cameraAngle +
-            cameraX *
-            (FOV / 2);
+            cameraYaw +
+            cameraOffset *
+            FOV;
 
-        const rayDirX =
-            Math.cos(
+        let distance =
+            castRay(
+                playerX,
+                playerY,
                 rayAngle
             );
-
-        const rayDirY =
-            Math.sin(
-                rayAngle
-            );
-
-        let mapX =
-            Math.floor(
-                posX
-            );
-
-        let mapY =
-            Math.floor(
-                posY
-            );
-
-        const deltaDistX =
-            Math.abs(
-                1 /
-                (
-                    rayDirX ||
-                    0.000001
-                )
-            );
-
-        const deltaDistY =
-            Math.abs(
-                1 /
-                (
-                    rayDirY ||
-                    0.000001
-                )
-            );
-
-        let stepX;
-        let stepY;
-
-        let sideDistX;
-        let sideDistY;
-
-        if (
-            rayDirX < 0
-        ) {
-
-            stepX = -1;
-
-            sideDistX =
-                (
-                    posX -
-                    mapX
-                ) *
-                deltaDistX;
-
-        } else {
-
-            stepX = 1;
-
-            sideDistX =
-                (
-                    mapX +
-                    1 -
-                    posX
-                ) *
-                deltaDistX;
-        }
-
-        if (
-            rayDirY < 0
-        ) {
-
-            stepY = -1;
-
-            sideDistY =
-                (
-                    posY -
-                    mapY
-                ) *
-                deltaDistY;
-
-        } else {
-
-            stepY = 1;
-
-            sideDistY =
-                (
-                    mapY +
-                    1 -
-                    posY
-                ) *
-                deltaDistY;
-        }
-
-        let hit = false;
-        let side = 0;
-        let distance = 0;
-
-        for (
-            let depth = 0;
-            depth < MAX_DEPTH;
-            depth++
-        ) {
-
-            if (
-                sideDistX <
-                sideDistY
-            ) {
-
-                sideDistX +=
-                    deltaDistX;
-
-                mapX +=
-                    stepX;
-
-                side = 0;
-
-            } else {
-
-                sideDistY +=
-                    deltaDistY;
-
-                mapY +=
-                    stepY;
-
-                side = 1;
-            }
-
-            if (
-                !data.grid[mapY] ||
-                data.grid[mapY][mapX] ===
-                    "1"
-            ) {
-
-                hit = true;
-
-                break;
-            }
-        }
-
-        if (!hit) {
-            continue;
-        }
-
-        if (side === 0) {
-
-            distance =
-                sideDistX -
-                deltaDistX;
-
-        } else {
-
-            distance =
-                sideDistY -
-                deltaDistY;
-        }
-
-        /* ---------------- FISHEYE CORRECTION ---------------- */
 
         distance *=
             Math.cos(
                 rayAngle -
-                cameraAngle
+                cameraYaw
             );
 
         distance =
             Math.max(
-                distance,
-                0.0001
+                0.001,
+                distance
             );
 
-        /* ---------------- WALL HEIGHT ---------------- */
-
         const wallHeight =
-            height /
+            (
+                canvas.height *
+                0.95
+            ) /
             distance;
 
         const top =
-            height / 2 -
+            horizon -
             wallHeight / 2;
 
         const bottom =
-            height / 2 +
+            horizon +
             wallHeight / 2;
-
-        /* ---------------- SHADING ---------------- */
 
         const brightness =
             Math.max(
-                0.15,
+                25,
                 Math.min(
-                    1,
-                    1 /
-                    (
+                    255,
+                    255 -
                         distance *
-                        0.22
-                    )
+                        18
                 )
             );
 
-        const base =
-            side
-                ? 70
-                : 95;
-
-        const r =
-            Math.floor(
-                base *
-                brightness
-            );
-
-        const g =
-            Math.floor(
-                (base + 25) *
-                brightness
-            );
-
-        const b =
-            Math.floor(
-                (base + 65) *
-                brightness
-            );
-
         ctx.fillStyle =
-            `rgb(${r},${g},${b})`;
-
-        const rayWidth =
-            width /
-            RAY_COUNT +
-            1;
+            `rgb(${Math.floor(
+                brightness * 0.25
+            )}, ${Math.floor(
+                brightness * 0.40
+            )}, ${Math.floor(
+                brightness * 0.75
+            )})`;
 
         ctx.fillRect(
-            ray *
-                width /
-                RAY_COUNT,
-
+            i,
             top,
-
-            rayWidth,
-
+            canvas.width /
+                RAY_COUNT +
+                1,
             bottom - top
         );
     }
 
-    draw3DExit(
-        posX,
-        posY,
-        tileSize
-    );
-}
-
-/* ============================================================
-   3D EXIT
-   ============================================================ */
-
-function draw3DExit(
-    posX,
-    posY,
-    tileSize
-) {
+    // --------------------------------------------------------
+    // EXIT INDICATOR
+    // --------------------------------------------------------
 
     const exitX =
         exit.x + 0.5;
@@ -1973,129 +1967,94 @@ function draw3DExit(
         exit.y + 0.5;
 
     const dx =
-        exitX - posX;
+        exitX -
+        playerX;
 
     const dy =
-        exitY - posY;
+        exitY -
+        playerY;
 
     const distance =
-        Math.sqrt(
-            dx * dx +
-            dy * dy
+        Math.hypot(
+            dx,
+            dy
         );
 
-    if (
-        distance < 0.1
-    ) {
-        return;
-    }
-
-    let angle =
+    let relativeAngle =
         Math.atan2(
             dy,
             dx
         ) -
-        cameraAngle;
+        cameraYaw;
 
     while (
-        angle > Math.PI
+        relativeAngle >
+        Math.PI
     ) {
-
-        angle -=
+        relativeAngle -=
             Math.PI * 2;
     }
 
     while (
-        angle < -Math.PI
+        relativeAngle <
+        -Math.PI
     ) {
-
-        angle +=
+        relativeAngle +=
             Math.PI * 2;
     }
 
     if (
-        Math.abs(angle) >
-        FOV / 2
+        Math.abs(
+            relativeAngle
+        ) <
+        FOV * 0.55
     ) {
-        return;
+
+        const screenX =
+            canvas.width / 2 +
+            (
+                relativeAngle /
+                FOV
+            ) *
+            canvas.width;
+
+        const size =
+            Math.max(
+                10,
+                Math.min(
+                    60,
+                    100 /
+                        Math.max(
+                            distance,
+                            1
+                        )
+                )
+            );
+
+        const exitScreenY =
+            horizon -
+            size * 2;
+
+        ctx.fillStyle =
+            "#00e5ff";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            screenX,
+            exitScreenY,
+            size / 2,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
     }
-
-    const screenX =
-        canvas.width / 2 +
-        Math.tan(angle) *
-        (
-            canvas.width / 2
-        ) /
-        Math.tan(
-            FOV / 2
-        );
-
-    const size =
-        Math.min(
-            canvas.height *
-                0.7 /
-                distance,
-
-            canvas.height
-        );
-
-    const x =
-        screenX -
-        size / 2;
-
-    const y =
-        canvas.height / 2 -
-        size / 2;
-
-    const gradient =
-        ctx.createRadialGradient(
-            screenX,
-            canvas.height / 2,
-            2,
-            screenX,
-            canvas.height / 2,
-            size
-        );
-
-    gradient.addColorStop(
-        0,
-        "rgba(0,255,150,0.9)"
-    );
-
-    gradient.addColorStop(
-        1,
-        "rgba(0,255,150,0)"
-    );
-
-    ctx.fillStyle =
-        gradient;
-
-    ctx.fillRect(
-        x,
-        y,
-        size,
-        size
-    );
-
-    ctx.fillStyle =
-        "rgba(0,255,150,0.8)";
-
-    ctx.fillRect(
-        screenX -
-            size * 0.15,
-
-        y +
-            size * 0.2,
-
-        size * 0.3,
-
-        size * 0.6
-    );
 }
 
-/* ============================================================
-   DRAW SELECTOR
-   ============================================================ */
+// ============================================================
+// DRAW
+// ============================================================
 
 function draw() {
 
@@ -2104,68 +2063,68 @@ function draw() {
     }
 
     if (is3D) {
-
         draw3D();
-
     } else {
-
         draw2D();
     }
 }
 
-/* ============================================================
-   LOOP
-   ============================================================ */
+// ============================================================
+// GAME LOOP
+// ============================================================
 
-function update() {
+let lastTime = 0;
 
-    if (data) {
+function gameLoop(time) {
 
-        move();
+    const delta =
+        Math.min(
+            32,
+            time -
+                lastTime
+        );
+
+    lastTime =
+        time;
+
+    if (
+        data &&
+        !levelWon
+    ) {
+
+        if (is3D) {
+            update3DMovement();
+        } else {
+            update2DMovement();
+        }
+
+        checkWin();
 
         draw();
     }
 
     requestAnimationFrame(
-        update
+        gameLoop
     );
 }
 
-update();
+// ============================================================
+// INITIALIZE
+// ============================================================
 
-/* ============================================================
-   INIT
-   ============================================================ */
+buildMenu();
 
-const requested =
-    getRequestedLevel();
+const urlLevel =
+    getLevelFromURL();
 
-const safe =
-    getSafeLevel(
-        requested
+if (
+    urlLevel !== null
+) {
+    loadLevel(
+        urlLevel
     );
-
-if (safe === null) {
-
-    /*
-     * Menu state:
-     * 3D toggle hidden
-     * thumbstick hidden
-     */
-    toggle3D.style.display =
-        "none";
-
-    if (joystick) {
-        joystick.style.display =
-            "none";
-    }
-
-    buildMenu();
-
-} else {
-
-    /*
-     * Level state.
-     */
-    loadLevel(safe);
 }
+
+requestAnimationFrame(
+    gameLoop
+);
