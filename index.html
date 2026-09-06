@@ -23,86 +23,148 @@
 
     <div id="menu"></div>
 
-    <button id="toggle3D" type="button">
+    <!-- Hidden until a level is loaded -->
+    <button id="toggle3D" type="button" hidden>
         Toggle 3D
     </button>
 
     <canvas id="c" width="500" height="500"></canvas>
 
-    <div id="win" onclick="backToMenu()">
-        LEVEL COMPLETE 🌟<br>
-        <span style="font-size:18px;">Click to return</span>
+    <!-- Mobile 3D thumbstick -->
+    <div id="mobileThumbstick" hidden>
+        <div id="joystickBase">
+            <div id="joystickKnob"></div>
+        </div>
     </div>
 
-    <script src="main.js"></script>
+    <div id="win" onclick="backToMenu()">
+        LEVEL COMPLETE 🌟<br>
+        <span style="font-size:18px;">
+            Click to return
+        </span>
+    </div>
+
+    <script src="main.js?v=3"></script>
 
     <script>
-        // Prevent gesture/pinch zoom
-        document.addEventListener('gesturestart', function (e) {
-            e.preventDefault();
-        });
+        // =====================================================
+        // PREVENT GESTURE / PINCH ZOOM
+        // =====================================================
 
-        document.addEventListener('gesturechange', function (e) {
-            e.preventDefault();
-        });
-
-        document.addEventListener('gestureend', function (e) {
-            e.preventDefault();
-        });
-
-        // Prevent Ctrl + mouse-wheel zoom
-        document.addEventListener('wheel', function (e) {
-            if (e.ctrlKey) {
+        document.addEventListener(
+            'gesturestart',
+            function (e) {
                 e.preventDefault();
             }
-        }, {
-            passive: false
-        });
+        );
 
-        // Block right-click menu
-        document.addEventListener('contextmenu', function (e) {
-            e.preventDefault();
-        });
-
-        // Block copy / cut / paste
-        document.addEventListener('copy', function (e) {
-            e.preventDefault();
-        });
-
-        document.addEventListener('cut', function (e) {
-            e.preventDefault();
-        });
-
-        document.addEventListener('paste', function (e) {
-            e.preventDefault();
-        });
-
-        // Block text selection
-        document.addEventListener('selectstart', function (e) {
-            e.preventDefault();
-        });
-
-        // Block common shortcuts
-        document.addEventListener('keydown', function (e) {
-
-            if (
-                e.ctrlKey && (
-                    e.key.toLowerCase() === 'c' ||
-                    e.key.toLowerCase() === 'v' ||
-                    e.key.toLowerCase() === 'x' ||
-                    e.key.toLowerCase() === 'a' ||
-                    e.key.toLowerCase() === 'u' ||
-                    e.key.toLowerCase() === 's'
-                )
-            ) {
+        document.addEventListener(
+            'gesturechange',
+            function (e) {
                 e.preventDefault();
             }
+        );
 
-            // Block F12
-            if (e.key === 'F12') {
+        document.addEventListener(
+            'gestureend',
+            function (e) {
                 e.preventDefault();
             }
-        });
+        );
+
+        // =====================================================
+        // PREVENT CTRL + MOUSE WHEEL ZOOM
+        // =====================================================
+
+        document.addEventListener(
+            'wheel',
+            function (e) {
+
+                if (e.ctrlKey) {
+                    e.preventDefault();
+                }
+
+            },
+            {
+                passive: false
+            }
+        );
+
+        // =====================================================
+        // BLOCK RIGHT CLICK
+        // =====================================================
+
+        document.addEventListener(
+            'contextmenu',
+            function (e) {
+                e.preventDefault();
+            }
+        );
+
+        // =====================================================
+        // BLOCK COPY / CUT / PASTE
+        // =====================================================
+
+        document.addEventListener(
+            'copy',
+            function (e) {
+                e.preventDefault();
+            }
+        );
+
+        document.addEventListener(
+            'cut',
+            function (e) {
+                e.preventDefault();
+            }
+        );
+
+        document.addEventListener(
+            'paste',
+            function (e) {
+                e.preventDefault();
+            }
+        );
+
+        // =====================================================
+        // BLOCK TEXT SELECTION
+        // =====================================================
+
+        document.addEventListener(
+            'selectstart',
+            function (e) {
+                e.preventDefault();
+            }
+        );
+
+        // =====================================================
+        // BLOCK COMMON SHORTCUTS
+        // =====================================================
+
+        document.addEventListener(
+            'keydown',
+            function (e) {
+
+                if (
+                    e.ctrlKey &&
+                    (
+                        e.key.toLowerCase() === 'c' ||
+                        e.key.toLowerCase() === 'v' ||
+                        e.key.toLowerCase() === 'x' ||
+                        e.key.toLowerCase() === 'a' ||
+                        e.key.toLowerCase() === 'u' ||
+                        e.key.toLowerCase() === 's'
+                    )
+                ) {
+                    e.preventDefault();
+                }
+
+                // Block F12
+                if (e.key === 'F12') {
+                    e.preventDefault();
+                }
+            }
+        );
     </script>
 
 </body>
