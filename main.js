@@ -13,17 +13,15 @@ const win = document.getElementById("win");
 const toggle3D = document.getElementById("toggle3D");
 
 // ============================================================
-// DEVICE / INPUT DETECTION
+// TOUCH DETECTION
 // ============================================================
 
-// Reliable touch-capability detection.
-// maxTouchPoints is 0 on normal non-touch computers.
 const supportsTouch =
     navigator.maxTouchPoints > 0 ||
     "ontouchstart" in window;
 
-// Once a keyboard is actually used, keyboard mode takes priority
-// until another touch is detected.
+// Keyboard becomes the active control method after a
+// keyboard key is actually used.
 let keyboardMode = false;
 
 // ============================================================
@@ -49,30 +47,137 @@ const JOYSTICK_RADIUS = 65;
 const JOYSTICK_DEADZONE = 0.12;
 
 // ============================================================
-// THUMBSTICK VISIBILITY
+// LEVEL DATA
 // ============================================================
 
-function shouldShowThumbstick() {
+let data = null;
+let currentLevel = 1;
+
+let player = {
+    x: 1,
+    y: 1
+};
+
+let playerPx = {
+    x: 0,
+    y: 0
+};
+
+let exit = {
+    x: 0,
+    y: 0
+};
+
+let tileSize = 50;
+
+// ============================================================
+// 2D MOVEMENT
+// ============================================================
+
+const SPEED = 5;
+
+let keys = {};
+
+let clickTarget = null;
+
+// ============================================================
+// SPRITE
+// ============================================================
+
+const playerImage = new Image();
+playerImage.src = "player.png";
+
+const HITBOX_SCALE = 0.75;
+
+// ============================================================
+// 3D STATE
+// ============================================================
+
+let is3D = false;
+
+let cameraYaw = 0;
+let cameraPitch = 0;
+
+const FOV = Math.PI / 3;
+const RAY_COUNT = 500;
+const MAX_DEPTH = 30;
+
+// ============================================================
+// 3D TOUCH LOOK
+// ============================================================
+
+let lookPointerId = null;
+let lookLastX = 0;
+let lookLastY = 0;
+
+const LOOK_SENSITIVITY_X = 0.006;
+const LOOK_SENSITIVITY_Y = 0.0045;
+
+const MAX_PITCH =
+    Math.PI / 2 - 0.08;
+
+// ============================================================
+// LEVEL STATE HELPERS
+// ============================================================
+
+let levelWon = false;
+
+function isInsideLevel() {
     return (
-        supportsTouch &&
-        !keyboardMode &&
         data !== null &&
-        is3D &&
-        !levelWon &&
         canvas.style.display !== "none" &&
         win.style.display !== "flex"
     );
 }
 
+// ============================================================
+// THUMBSTICK VISIBILITY
+// ============================================================
+
 function updateThumbstickVisibility() {
-    if (!thumbstick) return;
+
+    if (!thumbstick) {
+        return;
+    }
+
+    const shouldShow =
+        supportsTouch &&
+        !keyboardMode &&
+        isInsideLevel() &&
+        is3D &&
+        !levelWon;
 
     thumbstick.hidden =
-        !shouldShowThumbstick();
+        !shouldShow;
 
-    if (!shouldShowThumbstick()) {
+    if (!shouldShow) {
         resetJoystick();
     }
+}
+
+// ============================================================
+// CONTROL VISIBILITY
+// ============================================================
+
+function updateControlVisibility() {
+
+    const inLevel =
+        isInsideLevel();
+
+    // IMPORTANT:
+    // The 3D toggle is controlled ONLY by whether
+    // we are inside a level.
+    //
+    // It does NOT depend on:
+    // - touch
+    // - keyboard
+    // - 3D mode
+    // - thumbstick state
+
+    toggle3D.hidden =
+        !inLevel;
+
+    updateThumbstickVisibility();
 }
 
 // ============================================================
@@ -80,6 +185,7 @@ function updateThumbstickVisibility() {
 // ============================================================
 
 function resetJoystick() {
+
     joystickActive = false;
     joystickPointerId = null;
 
@@ -93,11 +199,15 @@ function resetJoystick() {
 }
 
 // ============================================================
-// JOYSTICK POSITION
+// UPDATE JOYSTICK POSITION
 // ============================================================
 
 function updateJoystickPosition(e) {
-    if (!joystickBase || !joystickKnob) {
+
+    if (
+        !joystickBase ||
+        !joystickKnob
+    ) {
         return;
     }
 
@@ -121,12 +231,16 @@ function updateJoystickPosition(e) {
         centerY;
 
     const distance =
-        Math.hypot(dx, dy);
+        Math.hypot(
+            dx,
+            dy
+        );
 
     if (
         distance >
         JOYSTICK_RADIUS
     ) {
+
         const scale =
             JOYSTICK_RADIUS /
             distance;
@@ -165,7 +279,7 @@ function updateJoystickPosition(e) {
 }
 
 // ============================================================
-// THUMBSTICK EVENTS
+// THUMBSTICK POINTER DOWN
 // ============================================================
 
 if (thumbstick) {
@@ -184,21 +298,25 @@ if (thumbstick) {
                 return;
             }
 
-            if (e.pointerType !== "touch") {
+            if (
+                e.pointerType !== "touch"
+            ) {
                 return;
             }
 
             e.preventDefault();
             e.stopPropagation();
 
+            // Touch has taken control back.
             keyboardMode = false;
+
+            updateThumbstickVisibility();
 
             if (joystickActive) {
                 return;
             }
 
             joystickActive = true;
-
             joystickPointerId =
                 e.pointerId;
 
@@ -214,6 +332,10 @@ if (thumbstick) {
             passive: false
         }
     );
+
+    // ========================================================
+    // THUMBSTICK POINTER MOVE
+    // ========================================================
 
     thumbstick.addEventListener(
         "pointermove",
@@ -243,13 +365,17 @@ if (thumbstick) {
         }
     );
 
+    // ========================================================
+    // THUMBSTICK POINTER UP
+    // ========================================================
+
     thumbstick.addEventListener(
         "pointerup",
         function (e) {
 
             if (
                 e.pointerId !==
-                joystickPointerId
+                    joystickPointerId
             ) {
                 return;
             }
@@ -264,13 +390,17 @@ if (thumbstick) {
         }
     );
 
+    // ========================================================
+    // THUMBSTICK POINTER CANCEL
+    // ========================================================
+
     thumbstick.addEventListener(
         "pointercancel",
         function (e) {
 
             if (
                 e.pointerId !==
-                joystickPointerId
+                    joystickPointerId
             ) {
                 return;
             }
@@ -282,6 +412,10 @@ if (thumbstick) {
         }
     );
 
+    // ========================================================
+    // LOST POINTER CAPTURE
+    // ========================================================
+
     thumbstick.addEventListener(
         "lostpointercapture",
         function () {
@@ -291,52 +425,20 @@ if (thumbstick) {
 }
 
 // ============================================================
-// LEVEL DATA
-// ============================================================
-
-let data = null;
-let currentLevel = 1;
-
-let player = {
-    x: 1,
-    y: 1
-};
-
-let playerPx = {
-    x: 0,
-    y: 0
-};
-
-let exit = {
-    x: 0,
-    y: 0
-};
-
-let tileSize = 50;
-
-// ============================================================
-// 2D MOVEMENT
-// ============================================================
-
-const SPEED = 5;
-
-let keys = {};
-
-let clickTarget = null;
-
-// ============================================================
-// KEYBOARD INPUT
+// KEYBOARD DOWN
 // ============================================================
 
 document.addEventListener(
     "keydown",
     function (e) {
 
-        // Any actual keyboard use switches to keyboard mode.
+        // Keyboard takes control.
         keyboardMode = true;
 
         resetJoystick();
 
+        // Only the thumbstick hides.
+        // The 3D toggle remains visible.
         updateThumbstickVisibility();
 
         keys[e.key] = true;
@@ -354,6 +456,10 @@ document.addEventListener(
     }
 );
 
+// ============================================================
+// KEYBOARD UP
+// ============================================================
+
 document.addEventListener(
     "keyup",
     function (e) {
@@ -362,11 +468,9 @@ document.addEventListener(
 );
 
 // ============================================================
-// TOUCH INPUT
+// TOUCH USED AGAIN
 // ============================================================
 
-// A real touch pointer switches back to touch controls.
-// This means the thumbstick can return after a keyboard was used.
 document.addEventListener(
     "pointerdown",
     function (e) {
@@ -377,6 +481,7 @@ document.addEventListener(
             return;
         }
 
+        // Touch takes control back.
         keyboardMode = false;
 
         updateThumbstickVisibility();
@@ -385,51 +490,6 @@ document.addEventListener(
         passive: true
     }
 );
-
-// ============================================================
-// SPRITE
-// ============================================================
-
-const playerImage = new Image();
-
-playerImage.src =
-    "player.png";
-
-const HITBOX_SCALE = 0.75;
-
-// ============================================================
-// 3D STATE
-// ============================================================
-
-let is3D = false;
-
-let cameraYaw = 0;
-let cameraPitch = 0;
-
-const FOV =
-    Math.PI / 3;
-
-const RAY_COUNT = 500;
-
-const MAX_DEPTH = 30;
-
-// ============================================================
-// 3D TOUCH LOOK
-// ============================================================
-
-let lookPointerId = null;
-
-let lookLastX = 0;
-let lookLastY = 0;
-
-const LOOK_SENSITIVITY_X =
-    0.006;
-
-const LOOK_SENSITIVITY_Y =
-    0.0045;
-
-const MAX_PITCH =
-    Math.PI / 2 - 0.08;
 
 // ============================================================
 // 3D TOUCH LOOK START
@@ -453,7 +513,7 @@ document.addEventListener(
             return;
         }
 
-        // Thumbstick owns this touch.
+        // The thumbstick owns this pointer.
         if (
             thumbstick &&
             (
@@ -498,7 +558,7 @@ document.addEventListener(
 
         if (
             e.pointerId !==
-            lookPointerId
+                lookPointerId
         ) {
             return;
         }
@@ -591,15 +651,16 @@ toggle3D.addEventListener(
 
         resetJoystick();
 
-        if (is3D) {
-            toggle3D.textContent =
-                "2D";
-        } else {
-            toggle3D.textContent =
-                "3D";
-        }
+        // Toggle text.
+        toggle3D.textContent =
+            is3D
+                ? "2D"
+                : "3D";
 
+        // The toggle stays visible.
         updateControlVisibility();
+
+        // Thumbstick follows the new 3D state.
         updateThumbstickVisibility();
     }
 );
@@ -681,7 +742,7 @@ function getLevelFromURL() {
 }
 
 // ============================================================
-// MENU
+// BUILD MENU
 // ============================================================
 
 function buildMenu() {
@@ -697,8 +758,10 @@ function buildMenu() {
     win.style.display =
         "none";
 
+    // 3D toggle is hidden on the menu.
     toggle3D.hidden = true;
 
+    // Thumbstick is also hidden on the menu.
     if (thumbstick) {
         thumbstick.hidden = true;
     }
@@ -708,6 +771,8 @@ function buildMenu() {
     lookPointerId = null;
 
     is3D = false;
+
+    keyboardMode = false;
 
     toggle3D.textContent =
         "3D";
@@ -735,8 +800,7 @@ function buildMenu() {
                 : `Level ${level} 🔒`;
 
         if (
-            level >
-            unlocked
+            level > unlocked
         ) {
 
             button.classList.add(
@@ -759,25 +823,6 @@ function buildMenu() {
             button
         );
     }
-}
-
-// ============================================================
-// CONTROL VISIBILITY
-// ============================================================
-
-function updateControlVisibility() {
-
-    const inLevel =
-        data !== null &&
-        canvas.style.display !==
-            "none" &&
-        win.style.display !==
-            "flex";
-
-    toggle3D.hidden =
-        !inLevel;
-
-    updateThumbstickVisibility();
 }
 
 // ============================================================
@@ -823,6 +868,7 @@ async function loadLevel(level) {
 
         is3D = false;
 
+        cameraYaw = 0;
         cameraPitch = 0;
 
         clickTarget = null;
@@ -831,8 +877,9 @@ async function loadLevel(level) {
 
         lookPointerId = null;
 
-        // Reset to automatic touch controls
-        // when entering a new level.
+        levelWon = false;
+
+        // New level starts in automatic touch mode.
         keyboardMode = false;
 
         menu.style.display =
@@ -844,8 +891,9 @@ async function loadLevel(level) {
         win.style.display =
             "none";
 
-        toggle3D.hidden =
-            false;
+        // IMPORTANT:
+        // Always show the 3D toggle inside a level.
+        toggle3D.hidden = false;
 
         toggle3D.textContent =
             "3D";
@@ -874,13 +922,17 @@ function parseGrid(raw) {
 
     let grid;
 
-    if (Array.isArray(raw)) {
+    if (
+        Array.isArray(raw)
+    ) {
 
         grid = raw;
 
     } else if (
         raw &&
-        Array.isArray(raw.grid)
+        Array.isArray(
+            raw.grid
+        )
     ) {
 
         grid = raw.grid;
@@ -1056,7 +1108,7 @@ function isWall(x, y) {
 }
 
 // ============================================================
-// 2D COLLISION
+// COLLISION
 // ============================================================
 
 function canMoveTo(x, y) {
@@ -1167,7 +1219,7 @@ function tryMove(dx, dy) {
 }
 
 // ============================================================
-// 2D KEYBOARD / CLICK MOVEMENT
+// 2D MOVEMENT
 // ============================================================
 
 function update2DMovement() {
@@ -1303,7 +1355,7 @@ function update3DMovement() {
     let moveStrafe = 0;
 
     // --------------------------------------------------------
-    // TOUCH THUMBSTICK
+    // THUMBSTICK
     // --------------------------------------------------------
 
     if (
@@ -1429,20 +1481,14 @@ function update3DMovement() {
             moveStrafe
         );
 
-    const movementSpeed =
-        SPEED;
-
     tryMove(
-        worldX *
-            movementSpeed,
-
-        worldY *
-            movementSpeed
+        worldX * SPEED,
+        worldY * SPEED
     );
 }
 
 // ============================================================
-// INPUT: CLICK / TOUCH FOR 2D ONLY
+// 2D POINTER CONTROL
 // ============================================================
 
 function handle2DPointer(e) {
@@ -1455,9 +1501,7 @@ function handle2DPointer(e) {
     }
 
     if (
-        e.pointerType ===
-            "touch" &&
-        supportsTouch
+        e.pointerType === "touch"
     ) {
         return;
     }
@@ -1518,8 +1562,7 @@ canvas.addEventListener(
 
         if (
             e.buttons ||
-            e.pointerType ===
-                "touch"
+            e.pointerType === "touch"
         ) {
             handle2DPointer(e);
         }
@@ -1532,8 +1575,6 @@ canvas.addEventListener(
 // ============================================================
 // WIN CHECK
 // ============================================================
-
-let levelWon = false;
 
 function checkWin() {
 
@@ -1579,12 +1620,12 @@ function checkWin() {
             currentLevel + 1
         );
 
-        toggle3D.hidden =
-            true;
+        // Hide both controls only because
+        // the level is complete.
+        toggle3D.hidden = true;
 
         if (thumbstick) {
-            thumbstick.hidden =
-                true;
+            thumbstick.hidden = true;
         }
 
         win.style.display =
@@ -1669,12 +1710,8 @@ function draw2D() {
                     "#1c2a44";
 
                 ctx.fillRect(
-                    x *
-                        tileSize,
-
-                    y *
-                        tileSize,
-
+                    x * tileSize,
+                    y * tileSize,
                     tileSize,
                     tileSize
                 );
@@ -1685,12 +1722,8 @@ function draw2D() {
                     "#070a12";
 
                 ctx.fillRect(
-                    x *
-                        tileSize,
-
-                    y *
-                        tileSize,
-
+                    x * tileSize,
+                    y * tileSize,
                     tileSize,
                     tileSize
                 );
@@ -1702,22 +1735,14 @@ function draw2D() {
         "#00e5ff";
 
     ctx.fillRect(
+        exit.x * tileSize +
+            tileSize * 0.2,
 
-        exit.x *
-            tileSize +
-            tileSize *
-            0.2,
+        exit.y * tileSize +
+            tileSize * 0.2,
 
-        exit.y *
-            tileSize +
-            tileSize *
-            0.2,
-
-        tileSize *
-            0.6,
-
-        tileSize *
-            0.6
+        tileSize * 0.6,
+        tileSize * 0.6
     );
 
     const size =
@@ -1730,7 +1755,6 @@ function draw2D() {
     ) {
 
         ctx.drawImage(
-
             playerImage,
 
             playerPx.x -
@@ -1751,12 +1775,9 @@ function draw2D() {
         ctx.beginPath();
 
         ctx.arc(
-
             playerPx.x,
             playerPx.y,
-
             size / 2,
-
             0,
             Math.PI * 2
         );
@@ -1802,16 +1823,12 @@ function castRay(
             distance;
 
         if (
-            isWall(
-                x,
-                y
-            )
+            isWall(x, y)
         ) {
             return distance;
         }
 
-        distance +=
-            step;
+        distance += step;
     }
 
     return MAX_DEPTH;
@@ -2073,19 +2090,7 @@ function draw() {
 // GAME LOOP
 // ============================================================
 
-let lastTime = 0;
-
 function gameLoop(time) {
-
-    const delta =
-        Math.min(
-            32,
-            time -
-                lastTime
-        );
-
-    lastTime =
-        time;
 
     if (
         data &&
@@ -2120,9 +2125,7 @@ const urlLevel =
 if (
     urlLevel !== null
 ) {
-    loadLevel(
-        urlLevel
-    );
+    loadLevel(urlLevel);
 }
 
 requestAnimationFrame(
